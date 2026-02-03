@@ -14,8 +14,13 @@ from google.genai import types
 import asyncio
 from PIL import Image
 import io
+from pydantic import BaseModel, Field
 
-from app.models.schemas import EditMask
+
+class EditMask(BaseModel):
+    """Single region edit instruction."""
+    region_mask: str = Field(..., description="Base64 PNG with alpha channel marking edit region")
+    instruction: str = Field(..., description="Edit instruction like 'Repaint wall navy blue'")
 
 
 class ImageEditor:

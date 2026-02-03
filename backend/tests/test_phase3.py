@@ -5,7 +5,8 @@ Run with: pytest tests/test_phase3.py -v
 """
 
 import sys
-sys.path.insert(0, "f:/pocket-planner/backend")
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.models.room import RoomObject, ObjectType, RoomDimensions
 from app.models.state import AgentState, create_initial_state

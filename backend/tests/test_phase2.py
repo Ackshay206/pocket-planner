@@ -5,7 +5,8 @@ Run with: pytest tests/test_phase2.py -v
 """
 
 import sys
-sys.path.insert(0, "f:/pocket-planner/backend")
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.models.room import RoomObject, ObjectType
 from app.core.constraints import (

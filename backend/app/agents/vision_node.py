@@ -12,7 +12,8 @@ from typing import Optional
 from google import genai
 from google.genai import types
 import asyncio
-from app.models.schemas import AnalyzeResponse, RoomObject, RoomDimensions
+from app.models.api import AnalyzeResponse
+from app.models.room import RoomObject, RoomDimensions, ObjectType
 
 
 class VisionExtractor:
@@ -79,18 +80,23 @@ Bounding boxes should be percentages (0-100) of image dimensions."""
                 # Convert to RoomObjects
                 objects = []
                 for obj in data.get("objects", []):
+                    obj_type = obj.get("type", "movable")
                     room_obj = RoomObject(
                         id=obj.get("id", f"obj_{len(objects)}"),
                         label=obj.get("label", "unknown"),
-                        bbox=obj.get("bbox", [0, 0, 10, 10]),
-                        type=obj.get("type", "movable"),
-                        orientation=obj.get("orientation"),
-                        locked=False
+                        bbox=[int(b) for b in obj.get("bbox", [0, 0, 10, 10])],
+                        type=ObjectType.STRUCTURAL if obj_type == "structural" else ObjectType.MOVABLE,
+                        orientation=0,
+                        is_locked=False
                     )
                     objects.append(room_obj)
                 
+                dims = data.get("room_dimensions", {"width": 300, "height": 400})
                 return AnalyzeResponse(
-                    room_dimensions=RoomDimensions(**data.get("room_dimensions", {"width": 10.0, "height": 10.0})),
+                    room_dimensions=RoomDimensions(
+                        width_estimate=int(dims.get("width", 300)),
+                        height_estimate=int(dims.get("height", 400))
+                    ),
                     objects=objects
                 )
                 

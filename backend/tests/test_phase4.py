@@ -7,7 +7,8 @@ Note: These tests use FastAPI's TestClient for in-process testing.
 """
 
 import sys
-sys.path.insert(0, "f:/pocket-planner/backend")
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi.testclient import TestClient
 from app.main import app

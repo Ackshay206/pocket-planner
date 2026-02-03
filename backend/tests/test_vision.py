@@ -5,7 +5,8 @@ Run with: pytest tests/test_vision.py -v
 """
 
 import sys
-sys.path.insert(0, "f:/pocket-planner/backend")
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 from unittest.mock import patch, MagicMock
