@@ -14,6 +14,8 @@ import type { AppState, RoomObject, EditMask } from '@/lib/types';
 const initialState: AppState = {
   image: null,
   imageId: null,
+  renderedImage: null,
+  showComparison: false,
   roomDimensions: null,
   objects: [],
   originalObjects: [],
@@ -162,7 +164,7 @@ export default function PocketPlannerApp() {
 
   // === Apply Edits ===
   const handleApplyEdits = useCallback(async () => {
-    if (!state.image || state.editMasks.length === 0) return;
+    if (!state.image) return;
 
     setState(prev => ({ ...prev, isRendering: true }));
 
@@ -177,11 +179,12 @@ export default function PocketPlannerApp() {
       if (response.image_base64) {
         setState(prev => ({
           ...prev,
-          image: `data:image/png;base64,${response.image_base64}`,
+          renderedImage: `data:image/png;base64,${response.image_base64}`,
+          showComparison: true,
           editMasks: [],
           isRendering: false,
         }));
-        toast.success('Edits applied');
+        toast.success('Render complete! Showing before/after comparison.');
       } else {
         toast(response.message);
         setState(prev => ({ ...prev, isRendering: false }));
@@ -190,7 +193,7 @@ export default function PocketPlannerApp() {
       toast.error(error instanceof Error ? error.message : 'Rendering failed');
       setState(prev => ({ ...prev, isRendering: false }));
     }
-  }, [state.image, state.objects, state.originalObjects, state.editMasks, render]);
+  }, [state.image, state.objects, state.originalObjects, render]);
 
   // === Mask Complete Handler ===
   const handleMaskComplete = useCallback((maskBase64: string) => {
@@ -238,7 +241,42 @@ export default function PocketPlannerApp() {
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
           {/* === Canvas Area === */}
           <div className="space-y-4">
-            {state.image && state.objects.length > 0 ? (
+            {/* Side-by-side comparison view */}
+            {state.showComparison && state.renderedImage ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-slate-300">Before / After Comparison</h3>
+                  <button
+                    onClick={() => setState(prev => ({ ...prev, showComparison: false, renderedImage: null }))}
+                    className="px-3 py-1 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+                  >
+                    ✕ Close
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="text-center text-sm text-slate-400 font-medium">Before</div>
+                    <div className="rounded-xl overflow-hidden border-2 border-slate-700">
+                      <img
+                        src={state.image || ''}
+                        alt="Original layout"
+                        className="w-full h-auto"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-center text-sm text-emerald-400 font-medium">After</div>
+                    <div className="rounded-xl overflow-hidden border-2 border-emerald-600">
+                      <img
+                        src={state.renderedImage}
+                        alt="Optimized layout"
+                        className="w-full h-auto"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : state.image && state.objects.length > 0 ? (
               <CanvasOverlay
                 imageUrl={state.image}
                 objects={state.objects}

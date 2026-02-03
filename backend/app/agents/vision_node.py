@@ -23,9 +23,9 @@ class VisionExtractor:
     
     def __init__(self):
         # Using Gemini Developer API with API key
-        api_key = os.environ.get("GEMINI_API_KEY")
+        api_key = os.environ.get("GOOGLE_API_KEY")
         if not api_key:
-            raise ValueError("GEMINI_API_KEY environment variable is not set")
+            raise ValueError("GOOGLE_API_KEY environment variable is not set")
         self.client = genai.Client(api_key=api_key)
         self.model = "gemini-2.5-flash"  # Vision model
     

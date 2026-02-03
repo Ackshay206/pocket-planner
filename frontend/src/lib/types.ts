@@ -83,29 +83,31 @@ export interface AppState {
   // Image
   image: string | null;
   imageId: string | null;
-  
+  renderedImage: string | null; // After optimization render
+  showComparison: boolean; // Show before/after view
+
   // Room data
   roomDimensions: RoomDimensions | null;
   objects: RoomObject[];
   originalObjects: RoomObject[]; // For comparison
-  
+
   // Selection
   selectedObjectId: string | null;
   lockedObjectIds: string[];
-  
+
   // Loading states
   isAnalyzing: boolean;
   isOptimizing: boolean;
   isRendering: boolean;
-  
+
   // Results
   explanation: string;
   violations: string[];
   layoutScore: number | null;
-  
+
   // Overlays
   overlays: Overlays;
-  
+
   // Edit mode
   maskMode: boolean;
   editMasks: EditMask[];

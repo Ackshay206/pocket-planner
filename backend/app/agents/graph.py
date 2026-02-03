@@ -5,8 +5,15 @@ Main agent workflow that orchestrates the optimization process:
 VisionNode → ConstraintNode → SolverNode → (loop) → Output
 
 Note: VisionNode and RenderNode are placeholders for Developer A's work.
+
+LangSmith Tracing:
+    Set these environment variables to enable tracing:
+    - LANGCHAIN_TRACING_V2=true
+    - LANGCHAIN_API_KEY=your_key
+    - LANGCHAIN_PROJECT=pocket-planner
 """
 
+import os
 from typing import Literal
 from langgraph.graph import StateGraph, END
 
@@ -14,6 +21,10 @@ from app.models.state import AgentState, create_initial_state
 from app.models.room import RoomObject, RoomDimensions
 from app.agents.constraint_node import constraint_node
 from app.agents.solver_node import solver_node, generate_optimization_summary
+
+
+# LangSmith tracing is automatically enabled when these env vars are set
+# No additional code needed - LangGraph integrates with LangSmith automatically
 
 
 # ============ Placeholder Nodes (Developer A will implement) ============
