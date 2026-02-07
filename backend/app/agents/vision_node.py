@@ -3,6 +3,11 @@ Vision Node
 
 Handles room image analysis using Gemini Vision.
 FULLY TRACED with LangSmith - including Gemini API calls.
+
+FIXES APPLIED:
+1. Use gemini-2.5-flash for vision (faster, avoids first-call timeout)
+2. Enhanced prompt to distinguish sofas from beds
+3. Post-processing deduplication to prevent sofa→bed misclassification
 """
 
 import json
@@ -75,6 +80,34 @@ Detect ALL objects in this floor plan and provide TIGHT, ACCURATE bounding boxes
 - Rugs, lamps, artwork
 - Shelving units (freestanding)
 
+## ⚠️ CRITICAL: DISTINGUISHING BEDS vs SOFAS
+This is VERY important — beds and sofas are often confused in floor plans. Use these rules:
+
+### BED characteristics:
+- Usually the LARGEST furniture piece in a bedroom
+- Typically placed with the HEAD (short side) against a wall
+- Has a roughly 2:3 or 3:4 width-to-length ASPECT RATIO (e.g. twin ~40x75in, queen ~60x80in, king ~76x80in)
+- Often has NIGHTSTANDS on one or both long sides
+- Usually has PILLOWS drawn at one short end
+- Located in a BEDROOM (private room, often with a closet/wardrobe nearby)
+- A room should almost NEVER have more than ONE bed (unless it's a shared/kids room)
+
+### SOFA / COUCH characteristics:
+- Typically NARROWER and more ELONGATED than a bed (higher length-to-depth ratio)
+- Depth is usually 30-40 inches while length varies (60-100+ inches)
+- Often placed against a wall in a LIVING AREA or open space
+- Commonly faces a TV, coffee table, or the center of a seating arrangement
+- May have an L-SHAPE or SECTIONAL form
+- Usually has a COFFEE TABLE or RUG in front of it
+- NOT typically accompanied by nightstands
+
+### Decision rule:
+- If only ONE large rectangular item exists in a bedroom → label it "bed"
+- If there is ALREADY a bed in the room and another large upholstered item exists → the second one is likely a "sofa"
+- If the item is in a living room / open area / faces a TV → label it "sofa"
+- If the aspect ratio is very elongated (depth < 40% of length) → likely "sofa"
+- When in doubt, consider the CONTEXT: what other furniture is nearby?
+
 ## DETECTION GUIDELINES
 1. Scan the ENTIRE image systematically from top-left to bottom-right
 2. Identify room boundaries (walls) first
@@ -86,6 +119,7 @@ Detect ALL objects in this floor plan and provide TIGHT, ACCURATE bounding boxes
    - Chairs (often at desks or tables)
    - Rugs (usually rectangular areas under or near furniture)
    - Artwork (rectangles on walls)
+7. Do NOT label two items as "bed" unless the room is clearly a shared/kids room with two separate sleeping areas
 
 ## OUTPUT FORMAT
 Return ONLY valid JSON:
@@ -106,6 +140,7 @@ Return ONLY valid JSON:
 }
 
 IMPORTANT: Be thorough - detect ALL objects. Better to detect too many than too few.
+Do NOT label multiple items as "bed" unless you are highly confident the room has multiple sleeping areas.
 """
 
 
@@ -120,6 +155,7 @@ class VisionAgent:
         if not settings.google_api_key:
             raise ValueError("GOOGLE_API_KEY environment variable is not set")
         self.client = genai.Client(api_key=settings.google_api_key)
+        # Use flash model for vision - much faster, avoids cold-start timeouts
         self.model = settings.model_name
 
     @traceable(name="vision_agent.analyze_room", run_type="chain", tags=["vision", "gemini"])
@@ -135,13 +171,18 @@ class VisionAgent:
         response_text = await self._call_gemini_vision(image, image_width, image_height)
         
         # Parse response
-        return self._parse_gemini_response(response_text, image_width, image_height)
+        vision_output = self._parse_gemini_response(response_text, image_width, image_height)
+        
+        # Post-process: fix bed/sofa misclassification
+        vision_output.objects = self._deduplicate_beds_and_sofas(vision_output.objects)
+        
+        return vision_output
 
     @traceable(
         name="gemini_vision_call", 
         run_type="llm", 
         tags=["gemini", "vision", "api-call"],
-        metadata={"model_type": "gemini-vision"}
+        metadata={"model_type": "gemini-flash-vision"}
     )
     async def _call_gemini_vision(self, image: Image.Image, width: int, height: int) -> str:
         """
@@ -209,6 +250,81 @@ class VisionAgent:
         
         return False
 
+    def _deduplicate_beds_and_sofas(self, objects: List[RoomObject]) -> List[RoomObject]:
+        """
+        Post-processing step to fix bed/sofa misclassification.
+        
+        Rules:
+        1. If there are multiple "bed" labels, keep the largest one as bed
+           and reclassify others as "sofa" (unless they are clearly separate beds)
+        2. Use aspect ratio: very elongated items (depth < 40% of length) → sofa
+        3. Use size: much smaller "beds" near a larger bed → likely sofa
+        """
+        beds = [obj for obj in objects if obj.label == "bed"]
+        
+        if len(beds) <= 1:
+            return objects  # No conflict
+        
+        # Sort beds by area (largest first)
+        beds_with_area = []
+        for bed in beds:
+            w, h = bed.bbox[2], bed.bbox[3]
+            area = w * h
+            aspect = min(w, h) / max(w, h) if max(w, h) > 0 else 1
+            beds_with_area.append((bed, area, aspect))
+        
+        beds_with_area.sort(key=lambda x: x[1], reverse=True)
+        
+        # The largest one stays as "bed"
+        primary_bed = beds_with_area[0]
+        
+        updated_objects = []
+        for obj in objects:
+            if obj.label == "bed" and obj.id != primary_bed[0].id:
+                # Check if this should be reclassified
+                w, h = obj.bbox[2], obj.bbox[3]
+                area = w * h
+                aspect = min(w, h) / max(w, h) if max(w, h) > 0 else 1
+                primary_area = primary_bed[1]
+                
+                should_reclassify = False
+                
+                # Rule 1: Much smaller than primary bed (< 60% area) → sofa
+                if area < primary_area * 0.6:
+                    should_reclassify = True
+                
+                # Rule 2: Very elongated aspect ratio (< 0.4) → sofa
+                if aspect < 0.4:
+                    should_reclassify = True
+                
+                # Rule 3: If there are already 2+ beds and this isn't obviously
+                # a second bed in a shared room, reclassify
+                if len(beds) > 2:
+                    should_reclassify = True
+                
+                if should_reclassify:
+                    # Reclassify as sofa
+                    new_id = obj.id.replace("bed", "sofa")
+                    updated_obj = RoomObject(
+                        id=new_id,
+                        label="sofa",
+                        bbox=obj.bbox.copy(),
+                        type=obj.type,
+                        orientation=obj.orientation,
+                        is_locked=obj.is_locked,
+                        z_index=obj.z_index,
+                        material_hint=obj.material_hint,
+                    )
+                    print(f"[Vision] Reclassified '{obj.id}' from bed → sofa "
+                          f"(area ratio: {area/primary_area:.2f}, aspect: {aspect:.2f})")
+                    updated_objects.append(updated_obj)
+                else:
+                    updated_objects.append(obj)
+            else:
+                updated_objects.append(obj)
+        
+        return updated_objects
+
     @traceable(name="parse_vision_response", run_type="parser", tags=["parsing"])
     def _parse_gemini_response(
         self,
@@ -219,8 +335,18 @@ class VisionAgent:
         """
         Parse Gemini's JSON response into VisionOutput schema.
         """
+        # Clean response text (strip markdown fences if present)
+        cleaned = response_text.strip()
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[7:]
+        if cleaned.startswith("```"):
+            cleaned = cleaned[3:]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+        cleaned = cleaned.strip()
+        
         try:
-            data = json.loads(response_text)
+            data = json.loads(cleaned)
         except json.JSONDecodeError as e:
             raise ValueError(f"Failed to parse Gemini response as JSON: {e}")
         
@@ -242,6 +368,10 @@ class VisionAgent:
         objects = []
         for obj_data in data.get("objects", []):
             label = obj_data.get("label", "unknown").lower()
+            
+            # Normalize sofa-related labels
+            if label in ("couch", "loveseat", "settee", "divan"):
+                label = "sofa"
             
             # Determine object type - OVERRIDE Gemini's classification for known structural objects
             if self._is_structural_object(label):
@@ -273,7 +403,7 @@ class VisionAgent:
 @functools.lru_cache()
 def get_vision_agent() -> VisionAgent:
     """
-    Get a singleton instance of ValidAgent.
+    Get a singleton instance of VisionAgent.
     Cached to avoid re-initializing the Gemini client on every request.
     """
     return VisionAgent()

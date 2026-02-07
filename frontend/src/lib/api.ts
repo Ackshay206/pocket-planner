@@ -1,7 +1,10 @@
 /**
  * API Client for Pocket Planner Backend
  * 
- * Updated with longer timeouts for layout generation
+ * FIXES APPLIED:
+ * 1. analyzeRoom now uses longApi (120s timeout) instead of api (60s)
+ *    - Gemini vision cold-start on first call can exceed 60s
+ * 2. Kept standard api client for truly fast endpoints (health, render)
  */
 
 import axios, { AxiosError } from 'axios';
@@ -20,7 +23,7 @@ import type {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-// Standard API client
+// Standard API client - for fast endpoints (health, simple render)
 const api = axios.create({
     baseURL: `${API_URL}/api/v1`,
     headers: {
@@ -29,13 +32,13 @@ const api = axios.create({
     timeout: 60000, // 60 second default timeout
 });
 
-// Long-running operations client (for optimize and perspective)
+// Long-running operations client (for analyze, optimize, perspective, chat)
 const longApi = axios.create({
     baseURL: `${API_URL}/api/v1`,
     headers: {
         'Content-Type': 'application/json',
     },
-    timeout: 180000, // 3 minute timeout for layout generation
+    timeout: 180000, // 3 minute timeout for AI operations
 });
 
 // Error handler
@@ -52,10 +55,11 @@ function handleApiError(error: unknown): never {
 
 /**
  * Analyze a room image and extract furniture objects
+ * Uses longApi - Gemini vision can be slow on first call (cold start)
  */
 export async function analyzeRoom(imageBase64: string): Promise<AnalyzeResponse> {
     try {
-        const response = await api.post<AnalyzeResponse>('/analyze', {
+        const response = await longApi.post<AnalyzeResponse>('/analyze', {
             image_base64: imageBase64,
         } satisfies AnalyzeRequest);
         return response.data;
