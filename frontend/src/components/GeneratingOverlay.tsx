@@ -20,97 +20,75 @@ export function GeneratingOverlay({ steps, currentStep }: GeneratingOverlayProps
     }, []);
 
     return (
-        <div className="min-h-[500px] flex flex-col items-center justify-center p-8">
+        <div className="min-h-[500px] flex flex-col items-center justify-center p-8 bg-white/95 backdrop-blur-xl rounded-3xl border border-gray-100 shadow-2xl">
             {/* Animated Icon */}
             <div className="relative mb-8">
-                <div className="w-24 h-24 bg-gradient-to-br from-[#6b7aa1] to-[#8b9ac1] rounded-3xl flex items-center justify-center shadow-2xl animate-pulse">
-                    <Sparkles className="w-12 h-12 text-white" />
+                <div className="w-24 h-24 bg-black rounded-full flex items-center justify-center shadow-2xl animate-pulse">
+                    <Sparkles className="w-10 h-10 text-white" />
                 </div>
-                {/* Orbiting dots */}
+                {/* Orbiting dots - Beige */}
                 <div className="absolute inset-0 animate-spin" style={{ animationDuration: '3s' }}>
-                    <div className="absolute -top-2 left-1/2 w-3 h-3 bg-blue-400 rounded-full transform -translate-x-1/2" />
+                    <div className="absolute -top-2 left-1/2 w-3 h-3 bg-[#C4A484] rounded-full transform -translate-x-1/2" />
                 </div>
                 <div className="absolute inset-0 animate-spin" style={{ animationDuration: '4s', animationDirection: 'reverse' }}>
-                    <div className="absolute -bottom-2 left-1/2 w-2 h-2 bg-rose-400 rounded-full transform -translate-x-1/2" />
-                </div>
-                <div className="absolute inset-0 animate-spin" style={{ animationDuration: '5s' }}>
-                    <div className="absolute top-1/2 -right-2 w-2.5 h-2.5 bg-violet-400 rounded-full transform -translate-y-1/2" />
+                    <div className="absolute -bottom-2 left-1/2 w-2 h-2 bg-gray-400 rounded-full transform -translate-x-1/2" />
                 </div>
             </div>
 
             {/* Title */}
-            <h2 className="text-2xl font-semibold text-gray-800 mb-2">
+            <h2 className="text-2xl font-bold text-black mb-2 tracking-tight">
                 Designing Your Space{dots}
             </h2>
-            <p className="text-gray-500 mb-8">Our AI is creating unique layout options</p>
+            <p className="text-gray-500 mb-8 font-light">Our AI is creating luxury layout options</p>
 
             {/* Progress Steps */}
-            <div className="w-full max-w-md space-y-3">
+            <div className="w-full max-w-md space-y-4">
                 {steps.map((step, index) => {
                     const isComplete = index < currentStep;
                     const isCurrent = index === currentStep;
-                    const isPending = index > currentStep;
 
                     return (
                         <div
                             key={index}
                             className={`
-                flex items-center gap-3 p-3 rounded-xl transition-all duration-300
-                ${isComplete ? 'bg-emerald-50' : isCurrent ? 'bg-[#6b7aa1]/10' : 'bg-gray-50'}
-              `}
+                                flex items-center gap-4 p-4 rounded-xl transition-all duration-500 border
+                                ${isComplete ? 'bg-black border-black' : isCurrent ? 'bg-white border-gray-200 shadow-lg scale-105' : 'bg-gray-50 border-transparent opacity-50'}
+                            `}
                         >
                             {/* Status Icon */}
                             <div className={`
-                w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all
-                ${isComplete
-                                    ? 'bg-emerald-500 text-white'
+                                w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-all border
+                                ${isComplete
+                                    ? 'bg-white border-white text-black'
                                     : isCurrent
-                                        ? 'bg-[#6b7aa1] text-white'
-                                        : 'bg-gray-200 text-gray-400'
+                                        ? 'bg-black border-black text-white'
+                                        : 'bg-transparent border-gray-300 text-gray-300'
                                 }
-              `}>
+                            `}>
                                 {isComplete ? (
-                                    <Check className="w-4 h-4" />
+                                    <Check className="w-3 h-3" />
                                 ) : isCurrent ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <Loader2 className="w-3 h-3 animate-spin" />
                                 ) : (
-                                    <span className="text-xs font-medium">{index + 1}</span>
+                                    <span className="text-[10px] font-medium">{index + 1}</span>
                                 )}
                             </div>
 
                             {/* Label */}
                             <span className={`
-                text-sm font-medium transition-colors
-                ${isComplete
-                                    ? 'text-emerald-700'
+                                text-sm font-medium transition-colors
+                                ${isComplete
+                                    ? 'text-white'
                                     : isCurrent
-                                        ? 'text-[#6b7aa1]'
+                                        ? 'text-black'
                                         : 'text-gray-400'
                                 }
-              `}>
+                            `}>
                                 {step.label}
                             </span>
-
-                            {/* Progress indicator for current step */}
-                            {isCurrent && (
-                                <div className="ml-auto">
-                                    <div className="flex gap-1">
-                                        <div className="w-1.5 h-1.5 bg-[#6b7aa1] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                                        <div className="w-1.5 h-1.5 bg-[#6b7aa1] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                                        <div className="w-1.5 h-1.5 bg-[#6b7aa1] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     );
                 })}
-            </div>
-
-            {/* Tip */}
-            <div className="mt-8 text-center">
-                <p className="text-xs text-gray-400 max-w-sm">
-                    💡 Tip: Each layout style optimizes for different needs - productivity, comfort, or creativity
-                </p>
             </div>
         </div>
     );

@@ -82,16 +82,16 @@ class RoomObject(BaseModel):
 class VisionOutput(BaseModel):
     """
     Output from the Vision Node (Gemini analysis of room photo).
-    
-    This is the exact schema that Gemini must return when analyzing
-    a room image. It contains room dimensions and all detected objects.
     """
     room_dimensions: RoomDimensions
     objects: List[RoomObject]
     wall_bounds: Optional[List[int]] = Field(
-        default=None, 
+        default=None,
         description="Interior wall boundaries as [x, y, width, height]"
     )
+    # NEW: image pixel dimensions for accurate spatial calculations
+    image_width: Optional[int] = Field(default=None, description="Source image width in pixels")
+    image_height: Optional[int] = Field(default=None, description="Source image height in pixels")
 
 
 class ConstraintViolation(BaseModel):

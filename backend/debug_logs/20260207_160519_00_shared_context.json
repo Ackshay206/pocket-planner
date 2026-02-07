@@ -1,0 +1,347 @@
+{
+  "pixel_space": {
+    "width": 654,
+    "height": 715
+  },
+  "room_dims_feet": {
+    "width": 15.0,
+    "height": 22.0
+  },
+  "door_info": {
+    "id": "door_1",
+    "type": "door",
+    "wall": "north (top)",
+    "bbox": [
+      260,
+      92,
+      79,
+      16
+    ],
+    "x": 260,
+    "y": 92,
+    "width": 79,
+    "height": 16,
+    "center_x": 299.5,
+    "center_y": 100.0,
+    "position_on_wall_percent": 45.8
+  },
+  "window_info": {
+    "id": "window_1",
+    "type": "window",
+    "wall": "interior",
+    "bbox": [
+      119,
+      430,
+      11,
+      176
+    ],
+    "x": 119,
+    "y": 430,
+    "width": 11,
+    "height": 176,
+    "center_x": 124.5,
+    "center_y": 518.0,
+    "position_on_wall_percent": 50.0
+  },
+  "movable_objects": [
+    {
+      "id": "table_1",
+      "label": "table",
+      "full_label": "table",
+      "bbox": [
+        174,
+        306,
+        58,
+        57
+      ]
+    },
+    {
+      "id": "chair_1",
+      "label": "chair",
+      "full_label": "chair",
+      "bbox": [
+        235,
+        306,
+        39,
+        39
+      ]
+    },
+    {
+      "id": "chair_2",
+      "label": "chair",
+      "full_label": "chair",
+      "bbox": [
+        189,
+        354,
+        39,
+        39
+      ]
+    },
+    {
+      "id": "sofa_1",
+      "label": "sofa",
+      "full_label": "sofa",
+      "bbox": [
+        170,
+        434,
+        73,
+        168
+      ]
+    },
+    {
+      "id": "artwork_1",
+      "label": "artwork",
+      "full_label": "artwork",
+      "bbox": [
+        147,
+        473,
+        14,
+        85
+      ]
+    },
+    {
+      "id": "bed_1",
+      "label": "bed",
+      "full_label": "bed",
+      "bbox": [
+        376,
+        406,
+        153,
+        160
+      ]
+    },
+    {
+      "id": "nightstand_1",
+      "label": "nightstand",
+      "full_label": "nightstand",
+      "bbox": [
+        487,
+        368,
+        50,
+        36
+      ]
+    },
+    {
+      "id": "nightstand_2",
+      "label": "nightstand",
+      "full_label": "nightstand",
+      "bbox": [
+        487,
+        567,
+        50,
+        36
+      ]
+    },
+    {
+      "id": "plant_1",
+      "label": "plant",
+      "full_label": "plant",
+      "bbox": [
+        437,
+        362,
+        37,
+        36
+      ]
+    },
+    {
+      "id": "artwork_2",
+      "label": "artwork",
+      "full_label": "artwork",
+      "bbox": [
+        553,
+        443,
+        13,
+        85
+      ]
+    },
+    {
+      "id": "rug_1",
+      "label": "rug",
+      "full_label": "rug",
+      "bbox": [
+        202,
+        605,
+        152,
+        42
+      ]
+    },
+    {
+      "id": "rug_2",
+      "label": "rug",
+      "full_label": "rug",
+      "bbox": [
+        458,
+        605,
+        146,
+        42
+      ]
+    },
+    {
+      "id": "lamp_1",
+      "label": "lamp",
+      "full_label": "lamp",
+      "bbox": [
+        501,
+        376,
+        19,
+        18
+      ]
+    },
+    {
+      "id": "lamp_2",
+      "label": "lamp",
+      "full_label": "lamp",
+      "bbox": [
+        501,
+        574,
+        19,
+        18
+      ]
+    }
+  ],
+  "structural_objects": [
+    {
+      "id": "refrigerator_1",
+      "label": "refrigerator",
+      "full_label": "refrigerator",
+      "bbox": [
+        152,
+        92,
+        82,
+        87
+      ]
+    },
+    {
+      "id": "kitchen_cabinet_1",
+      "label": "kitchen cabinet",
+      "full_label": "kitchen_cabinet",
+      "bbox": [
+        152,
+        145,
+        32,
+        34
+      ]
+    },
+    {
+      "id": "kitchen_sink_1",
+      "label": "kitchen sink",
+      "full_label": "kitchen_sink",
+      "bbox": [
+        185,
+        182,
+        47,
+        19
+      ]
+    },
+    {
+      "id": "stovetop_1",
+      "label": "stovetop",
+      "full_label": "stovetop",
+      "bbox": [
+        185,
+        229,
+        47,
+        37
+      ]
+    },
+    {
+      "id": "door_1",
+      "label": "door",
+      "full_label": "door",
+      "bbox": [
+        260,
+        92,
+        79,
+        16
+      ]
+    },
+    {
+      "id": "sink_1",
+      "label": "sink",
+      "full_label": "sink",
+      "bbox": [
+        355,
+        112,
+        56,
+        27
+      ]
+    },
+    {
+      "id": "sink_2",
+      "label": "sink",
+      "full_label": "sink",
+      "bbox": [
+        355,
+        144,
+        56,
+        27
+      ]
+    },
+    {
+      "id": "toilet_1",
+      "label": "toilet",
+      "full_label": "toilet",
+      "bbox": [
+        426,
+        119,
+        37,
+        66
+      ]
+    },
+    {
+      "id": "shower_1",
+      "label": "shower",
+      "full_label": "shower",
+      "bbox": [
+        480,
+        80,
+        103,
+        140
+      ]
+    },
+    {
+      "id": "shelf_1",
+      "label": "shelf",
+      "full_label": "shelf",
+      "bbox": [
+        345,
+        236,
+        200,
+        43
+      ]
+    },
+    {
+      "id": "window_1",
+      "label": "window",
+      "full_label": "window",
+      "bbox": [
+        119,
+        430,
+        11,
+        176
+      ]
+    },
+    {
+      "id": "window_2",
+      "label": "window",
+      "full_label": "window",
+      "bbox": [
+        202,
+        651,
+        152,
+        14
+      ]
+    },
+    {
+      "id": "window_3",
+      "label": "window",
+      "full_label": "window",
+      "bbox": [
+        458,
+        651,
+        146,
+        14
+      ]
+    }
+  ]
+}

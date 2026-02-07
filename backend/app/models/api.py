@@ -24,6 +24,9 @@ class AnalyzeResponse(BaseModel):
     wall_bounds: Optional[List[int]] = Field(None, description="Interior wall boundaries [x, y, width, height]")
     detected_issues: List[str] = Field(default_factory=list)
     message: str = "Analysis complete"
+    # NEW: pixel dimensions for designer_node spatial calculations
+    image_width: Optional[int] = Field(None, description="Source image width in pixels")
+    image_height: Optional[int] = Field(None, description="Source image height in pixels")
 
 
 # ============ Optimize Endpoint ============
@@ -44,8 +47,8 @@ class LayoutVariation(BaseModel):
     name: str = Field(..., description="e.g., 'Productivity Focus', 'Cozy Retreat', 'Space Optimized'")
     description: str = Field(..., description="Design rationale explaining the layout choices")
     layout: List[RoomObject] = Field(..., description="The furniture arrangement for this variation")
+    layout_plan: Optional[dict] = Field(None, description="Semantic layout plan with furniture_placement instructions from Gemini")
     thumbnail_base64: Optional[str] = Field(None, description="Preview render of this layout")
-    score: Optional[float] = Field(None, ge=0, le=100, description="Layout quality score 0-100")
 
 
 class OptimizeResponse(BaseModel):
@@ -55,7 +58,6 @@ class OptimizeResponse(BaseModel):
     # Legacy fields for backwards compatibility
     new_layout: Optional[List[RoomObject]] = Field(None, description="DEPRECATED: Use variations[0].layout")
     explanation: Optional[str] = Field(None, description="DEPRECATED: Use variations[0].description")
-    layout_score: Optional[float] = Field(None, description="DEPRECATED: Use variations[0].score")
     iterations: Optional[int] = Field(None, description="Number of optimization iterations")
     constraint_violations: List[ConstraintViolation] = Field(default_factory=list)
     improvement: float = Field(default=0.0, description="Score improvement from original")

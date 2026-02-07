@@ -54,6 +54,8 @@ class PerspectiveRequest(BaseModel):
     room_dimensions: RoomDimensions
     style: str = "modern"
     view_angle: str = "corner"
+    image_base64: Optional[str] = None  # Context image (layout thumbnail)
+    layout_plan: Optional[dict] = None  # Semantic placement plan from designer
 
 
 class PerspectiveResponse(BaseModel):
@@ -83,7 +85,9 @@ async def generate_perspective(request: PerspectiveRequest) -> PerspectiveRespon
             room_dims=request.room_dimensions,
             style=request.style,
             view_angle=request.view_angle,
-            lighting="natural daylight"
+            lighting="natural daylight",
+            image_base64=request.image_base64,
+            layout_plan=request.layout_plan,
         )
         
         return PerspectiveResponse(

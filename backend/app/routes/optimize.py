@@ -98,29 +98,33 @@ async def optimize_layout(request: OptimizeRequest) -> OptimizeResponse:
             image_base64=request.image_base64
         )
         
-        # STEP 5: Convert to LayoutVariation models
+
+        # STEP 5: Convert to LayoutVariation models (no scoring needed)
         variations = []
         for var in variations_data:
-            # Calculate score if not already done
-            layout_score = var.get("score")
-            if layout_score is None:
-                score_obj = score_layout(
-                    var["layout"],
-                    int(request.room_dimensions.width_estimate),
-                    int(request.room_dimensions.height_estimate)
-                )
-                layout_score = score_obj.total_score
-            
             variations.append(LayoutVariation(
                 name=var["name"],
                 description=var["description"],
                 layout=var["layout"],
+                layout_plan=var.get("layout_plan"),
                 thumbnail_base64=var.get("thumbnail_base64"),
-                score=layout_score
             ))
         
-        # STEP 6: Sort by score (highest first)
-        variations.sort(key=lambda v: v.score or 0, reverse=True)
+        # Get best variation for legacy fields
+        best = variations[0] if variations else None
+        
+        # Count thumbnails generated
+        thumbnails_generated = sum(1 for v in variations if v.thumbnail_base64)
+        
+        return OptimizeResponse(
+            variations=variations,
+            message=f"Generated {len(variations)} layouts ({thumbnails_generated} with preview images). {structural_count} structural objects locked.",
+            new_layout=best.layout if best else request.current_layout,
+            explanation=best.description if best else "No variations generated",
+            iterations=1,
+            constraint_violations=[],
+            improvement=0.0
+        )
         
         # Get best variation for legacy fields
         best = variations[0] if variations else None

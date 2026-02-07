@@ -1,21 +1,24 @@
 """
 Designer Node - Hierarchical Zone-Based Layout Generation
 
-FIXES APPLIED:
-1. Door/window info now includes full bbox and dimensions from structural objects
-2. Cleaner separation of movable vs structural objects
-3. Better door/window position extraction
-
-FLOW:
-1. _generate_layout_plan → Semantic/relative positions (NO coordinates)
-2. _generate_layout_image → Edit image using semantic plan with STRICT rules
-
-FULLY TRACED with LangSmith.
+ALL FIXES CONSOLIDATED:
+1. _extract_element_info uses PIXEL bbox space, not room-feet space
+2. _prepare_objects computes pixel extent from bboxes
+3. Window fallback: infer opposite door if not detected
+4. Specs reference "table/desk" for rooms without a desk
+5. Reinforcement auto-generated from technical_spec (not hardcoded)
+6. Anti-duplication language in image prompt
+7. Exclusion zones: structural fixtures → no-go areas
+8. Post-plan validation against structural objects
+9. Wall objects filtered from structural list
+10. Debug logging for all inputs/outputs
 """
 
 import json
 import base64
 import asyncio
+import os
+from datetime import datetime
 from typing import List, Dict, Any, Optional, Set, Tuple
 from enum import Enum
 from google import genai
@@ -26,7 +29,6 @@ from app.models.state import AgentState
 from app.models.room import RoomObject, RoomDimensions, ObjectType
 from app.core.scoring import score_layout
 
-# LangSmith tracing
 try:
     from langsmith import traceable
     LANGSMITH_ENABLED = True
@@ -37,75 +39,98 @@ except ImportError:
             return func
         return decorator
 
+# ============================================================================
+# DEBUG
+# ============================================================================
+DEBUG_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "debug_logs")
+
+def _ensure_debug_dir():
+    os.makedirs(DEBUG_DIR, exist_ok=True)
+
+def _save_debug_json(filename: str, data: Any):
+    try:
+        _ensure_debug_dir()
+        filepath = os.path.join(DEBUG_DIR, filename)
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, default=str)
+        print(f"[DEBUG] Saved: {filepath}")
+    except Exception as e:
+        print(f"[DEBUG] Failed to save {filename}: {e}")
+
+def _save_debug_image(filename: str, image_base64: str):
+    try:
+        _ensure_debug_dir()
+        filepath = os.path.join(DEBUG_DIR, filename)
+        with open(filepath, "wb") as f:
+            f.write(base64.b64decode(image_base64))
+        print(f"[DEBUG] Saved image: {filepath}")
+    except Exception as e:
+        print(f"[DEBUG] Failed to save image {filename}: {e}")
 
 # ============================================================================
-# ZONE DEFINITIONS
+# ZONES
 # ============================================================================
-
 class ZoneType(str, Enum):
     WORK = "work_zone"
     SLEEP = "sleep_zone"
     LIVING = "living_zone"
 
-
 FURNITURE_ZONE_MAP = {
     "bed": ZoneType.SLEEP, "nightstand": ZoneType.SLEEP, "dresser": ZoneType.SLEEP,
     "wardrobe": ZoneType.SLEEP, "closet": ZoneType.SLEEP,
-    "desk": ZoneType.WORK, "office_chair": ZoneType.WORK, "chair": ZoneType.WORK,
+    "desk": ZoneType.WORK, "office_chair": ZoneType.WORK,
     "bookshelf": ZoneType.WORK, "filing_cabinet": ZoneType.WORK,
     "sofa": ZoneType.LIVING, "couch": ZoneType.LIVING, "armchair": ZoneType.LIVING,
     "coffee_table": ZoneType.LIVING, "dining_table": ZoneType.LIVING,
     "tv_stand": ZoneType.LIVING, "rug": ZoneType.LIVING, "plant": ZoneType.LIVING,
-    "lamp": ZoneType.LIVING, "table": ZoneType.LIVING,
+    "lamp": ZoneType.LIVING,
 }
-
 
 LAYOUT_SPECIFICATIONS = {
     "work_focused": {
         "name": "Productivity Focus",
         "zone_priorities": [ZoneType.WORK, ZoneType.SLEEP, ZoneType.LIVING],
-        "description": "A work-first setup where the desk is the room's main feature.",
+        "description": "A work-first setup. The table/desk is the HERO piece, placed in the prime position. The bed is hidden in a far corner.",
         "technical_spec": {
-            "first_sightline": "Place the Desk on the wall directly opposite the main door entrance.",
-            "desk_anchor": "Push the Desk flush against the window or the center of the back wall.",
-            "chair_logic": "Turn the Office Chair to face the room's entrance.",
-            "bed_placement": "Hide the Bed in the corner furthest away from the desk and door sightline.",
-            "living_placement": "Place the Sofa against a side wall to keep the center path to the desk clear."
+            "desk_rule": "CRITICAL: The Table/Desk MUST be pushed flush against the wall that has the window. If no window, place it on the wall OPPOSITE the door so it's the first thing visible on entry. The table/desk is the HERO piece.",
+            "desk_orientation": "Position the Table/Desk so that it is on the straight line from the door to the opposite wall. Chairs go between the table and room center.",
+            "bed_hide": "CRITICAL: The Bed MUST be in the corner FURTHEST from both the door AND the table/desk. Headboard flush against wall. Bed should NOT be the first thing you see entering.",
+            "bed_rotation": "If the bed is currently near the table/desk or near the door, it MUST be relocated to a different wall entirely.",
+            "nightstand_rule": "Nightstands follow the bed to its NEW position.",
+            "sofa_rule": "Sofa flat against a side wall that is NOT the table/desk wall and NOT the bed wall. Keep center path door→table clear.",
+            "sightline": "When someone opens the door, the FIRST thing they should see is the Table/Desk and work area, NOT the bed.",
+            "pathway": "Clear straight walking path from door to table/desk."
         }
     },
     "cozy": {
         "name": "Cozy Retreat",
         "zone_priorities": [ZoneType.SLEEP, ZoneType.LIVING, ZoneType.WORK],
-        "description": "A comfort-first setup where the bed and sofa create a central relaxation zone.",
+        "description": "Comfort-first. The bed and sofa form one unified relaxation block.",
         "technical_spec": {
-            "first_sightline": "Place the Bed centered on the wall directly opposite the main door.",
-            "bed_anchor": "Center the Bed on the wall with one nightstand on each side.",
-            "sofa_placement": "Place the Sofa at the foot of the bed or right next to it to form one large lounging area.",
-            "desk_placement": "Tuck the Desk into a far corner where it is not visible when walking in.",
-            "sofa_direction": "Face the Sofa inward toward the bed or the center of the room."
+            "bed_focal": "CRITICAL: The Bed must be centered on the wall OPPOSITE the door — it's the first thing you see entering.",
+            "bed_anchor": "Center the Bed with one nightstand on each side (left AND right).",
+            "sofa_at_foot": "CRITICAL: The Sofa MUST be at the FOOT of the bed (the end away from the headboard), facing the bed. Bed + sofa form ONE unified lounging block.",
+            "table_hide": "Tuck the Table/Desk into a far corner, out of the main sightline from the door.",
+            "sofa_direction": "Sofa faces INWARD toward the bed, NOT toward a wall."
         }
     },
     "space_optimized": {
         "name": "Space Optimized",
         "zone_priorities": [ZoneType.LIVING, ZoneType.SLEEP, ZoneType.WORK],
-        "description": "A perimeter setup that clears the middle of the floor to make the room feel bigger.",
+        "description": "Perimeter layout. ALL furniture hugs the walls. The center floor is EMPTY.",
         "technical_spec": {
-            "perimeter_rule": "ALL furniture (Bed, Sofa, Desk, Wardrobe) MUST be pushed flat against the walls.",
-            "center_void": "CRITICAL: The physical center of the room must be completely EMPTY floor space.",
-            "sofa_placement": "Place the Sofa along a long wall, not floating in the middle.",
-            "desk_placement": "Place the Desk against a wall, preferably near a window if available.",
-            "pathway": "Clear wide walking path from door to all zones.",
-            "door_strict": "ABSOLUTELY NO FURNITURE within 3 feet of the door. Keep the entrance completely clear."
+            "perimeter_rule": "CRITICAL: ALL furniture (Bed, Sofa, Table, everything) MUST be pushed flat against walls. Nothing floating.",
+            "center_void": "CRITICAL: The physical center of the room must be COMPLETELY EMPTY floor space. No furniture, no rugs in the middle.",
+            "sofa_long_wall": "Sofa along a long wall, never floating.",
+            "table_wall": "Table/Desk against a wall, preferably near window if available.",
+            "pathway": "Wide clear walking path from door to all zones.",
+            "door_strict": "NO furniture within 3 feet of the door."
         }
     }
 }
 
+
 class InteriorDesignerAgent:
-    """
-    Generates layout variations using a hierarchical zone-based approach.
-    All methods are traced with LangSmith.
-    """
-    
     def __init__(self):
         settings = get_settings()
         if not settings.google_api_key:
@@ -114,312 +139,212 @@ class InteriorDesignerAgent:
         self.model = settings.model_name
         self.image_model = settings.image_model_name
 
-    @traceable(name="designer_agent.generate_layout_variations", run_type="chain", tags=["designer", "hierarchical"])
+    # ========================================================================
+    # MAIN ENTRY POINT
+    # ========================================================================
+    @traceable(name="designer_agent.generate_layout_variations", run_type="chain", tags=["designer"])
     async def generate_layout_variations(
-        self,
-        current_layout: List[RoomObject],
-        room_dims: RoomDimensions,
-        locked_ids: List[str],
-        image_base64: Optional[str] = None
+        self, current_layout: List[RoomObject], room_dims: RoomDimensions,
+        locked_ids: List[str], image_base64: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """Generate layout variations using hierarchical zone-based approach."""
-        
-        # STEP 1: Prepare objects - FIXED to properly separate movable/structural
+
+        self._debug_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        max_x = max((obj.bbox[0] + obj.bbox[2] for obj in current_layout), default=600)
+        max_y = max((obj.bbox[1] + obj.bbox[3] for obj in current_layout), default=700)
+        self._pixel_width = max(max_x + 50, 400)
+        self._pixel_height = max(max_y + 50, 400)
+
         complete_locked_ids, movable_objects, structural_objects, door_info, window_info = \
-            self._prepare_objects(current_layout, locked_ids, room_dims)
-        
+            self._prepare_objects(current_layout, locked_ids)
+
         if not movable_objects:
             raise ValueError("No movable objects to arrange")
-        
-        # STEP 2: Classify furniture into zones
+
         zone_assignments = self._classify_furniture_to_zones(movable_objects)
-        
         movable_count = len(movable_objects)
         furniture_labels = [obj["label"] for obj in movable_objects]
-        
-        print(f"[Designer] Zones: {{{', '.join(f'{z.value}: {len(ids)}' for z, ids in zone_assignments.items())}}}")
-        print(f"[Designer] Movable objects ({movable_count}): {furniture_labels}")
-        print(f"[Designer] Movable objects ({movable_count}): {furniture_labels}")
-        print(f"[Designer] Structural objects ({len(structural_objects)}): {[obj['label'] for obj in structural_objects]}")
-        
-        # --- FIX: Validate zone_assignments input ---
-        # Ensure no hallucinated IDs are in the zone assignments before planning
-        valid_movable_ids = {obj["id"] for obj in movable_objects}
+
+        print(f"[Designer] Movable ({movable_count}): {furniture_labels}")
+        print(f"[Designer] Structural ({len(structural_objects)}): {[o['label'] for o in structural_objects]}")
+        print(f"[Designer] Door: {door_info}")
+        print(f"[Designer] Window: {window_info}")
+        print(f"[Designer] Pixel space: {self._pixel_width}x{self._pixel_height}")
+
+        valid_ids = {obj["id"] for obj in movable_objects}
         for zone in zone_assignments:
-            original_ids = zone_assignments[zone]
-            filtered_ids = [oid for oid in original_ids if oid in valid_movable_ids]
-            
-            if len(original_ids) != len(filtered_ids):
-                removed = set(original_ids) - set(filtered_ids)
-                print(f"[Designer] REMOVED INVALID IDs from raw zone_assignments[{zone}]: {removed}")
-                zone_assignments[zone] = filtered_ids
-        # --------------------------------------------
-        
-        # Debug: Log door/window info with bbox details
-        if door_info:
-            print(f"[Designer] Door: wall={door_info['wall']}, bbox=[{door_info['x']}, {door_info['y']}, {door_info['width']}, {door_info['height']}], position={door_info.get('position_on_wall_percent')}%")
-        else:
-            print("[Designer] Door: NOT FOUND in structural objects")
-        
-        if window_info:
-            print(f"[Designer] Window: wall={window_info['wall']}, bbox=[{window_info['x']}, {window_info['y']}, {window_info['width']}, {window_info['height']}], position={window_info.get('position_on_wall_percent')}%")
-        else:
-            print("[Designer] Window: NOT FOUND in structural objects")
-        
-        # STEP 3: Generate layout PLANS in parallel (text only, semantic positions)
-        print("[Designer] Generating layout plans...")
-        
+            zone_assignments[zone] = [oid for oid in zone_assignments[zone] if oid in valid_ids]
+
+        _save_debug_json(f"{self._debug_ts}_00_shared_context.json", {
+            "pixel_space": {"width": self._pixel_width, "height": self._pixel_height},
+            "room_dims_feet": {"width": room_dims.width_estimate, "height": room_dims.height_estimate},
+            "door_info": door_info, "window_info": window_info,
+            "movable_objects": movable_objects, "structural_objects": structural_objects,
+        })
+
+        if image_base64:
+            clean_b64 = image_base64.split(",")[1] if "," in image_base64 else image_base64
+            _save_debug_image(f"{self._debug_ts}_00_input_image.jpg", clean_b64)
+
+        # STEP 1: Generate plans in parallel (with image for visual context)
         plan_tasks = [
-            self._generate_layout_plan(
-                style_key=style_key,
-                spec=spec,
-                zone_assignments=zone_assignments,
-                movable_objects=movable_objects,
-                structural_objects=structural_objects,
-                room_dims=room_dims,
-                door_info=door_info,
-                window_info=window_info
-            )
-            for style_key, spec in LAYOUT_SPECIFICATIONS.items()
+            self._generate_layout_plan(sk, sp, zone_assignments, movable_objects,
+                structural_objects, room_dims, door_info, window_info, image_base64)
+            for sk, sp in LAYOUT_SPECIFICATIONS.items()
         ]
-        
         layout_plans = await asyncio.gather(*plan_tasks, return_exceptions=True)
-        
-        # STEP 4: Generate layout IMAGES in parallel using the plans
-        print("[Designer] Generating layout images...")
-        
-        image_tasks = []
-        valid_plans = []
-        
+
+        # STEP 2: Validate and refine plans against actual room image
+        validation_tasks = []
+        plan_indices = []
         for i, plan in enumerate(layout_plans):
-            style_key = list(LAYOUT_SPECIFICATIONS.keys())[i]
-            spec = LAYOUT_SPECIFICATIONS[style_key]
-            
             if isinstance(plan, Exception):
-                print(f"[Designer] Plan generation failed for {style_key}: {plan}")
                 continue
-            
-            # --- FIX: Filter hallucinated objects ---
-            if plan and "furniture_placement" in plan:
-                valid_ids = {obj["id"] for obj in movable_objects}
-                original_keys = set(plan["furniture_placement"].keys())
-                
-                # Filter: Keep only IDs that strictly exist in movable_objects
-                filtered_placement = {
-                    k: v for k, v in plan["furniture_placement"].items()
-                    if k in valid_ids
+            sk = list(LAYOUT_SPECIFICATIONS.keys())[i]
+            sp = LAYOUT_SPECIFICATIONS[sk]
+            validation_tasks.append(
+                self._validate_layout_compliance(image_base64, plan, sp, sk)
+            )
+            plan_indices.append(i)
+
+        validated_results = await asyncio.gather(*validation_tasks, return_exceptions=True)
+
+        # STEP 3: Generate images from validated plans
+        image_tasks, valid_plans = [], []
+        for vi, orig_i in enumerate(plan_indices):
+            sk = list(LAYOUT_SPECIFICATIONS.keys())[orig_i]
+            sp = LAYOUT_SPECIFICATIONS[sk]
+
+            validated_plan = validated_results[vi]
+            if isinstance(validated_plan, Exception):
+                print(f"[Designer] Validation failed for {sk}: {validated_plan}")
+                validated_plan = layout_plans[orig_i]  # Fallback to original plan
+
+            # Filter hallucinated IDs
+            if validated_plan and "furniture_placement" in validated_plan:
+                validated_plan["furniture_placement"] = {
+                    k: v for k, v in validated_plan["furniture_placement"].items() if k in valid_ids
                 }
-                
-                # Log removals
-                removed = original_keys - set(filtered_placement.keys())
-                if removed:
-                    print(f"[Designer] REMOVED HALLUCINATED OBJECTS from {style_key}: {removed}")
-                    
-                plan["furniture_placement"] = filtered_placement
-            # ----------------------------------------
-            
-            if plan and image_base64:
-                valid_plans.append((style_key, spec, plan))
-                image_tasks.append(
-                    self._generate_layout_image(
-                        layout_plan=plan,
-                        style_key=style_key,
-                        spec=spec,
-                        movable_objects=movable_objects,
-                        structural_objects=structural_objects,
-                        door_info=door_info,
-                        window_info=window_info,
-                        image_base64=image_base64,
-                        movable_count=movable_count,
-                        furniture_labels=furniture_labels
-                    )
-                )
-        
+
+            _save_debug_json(f"{self._debug_ts}_plan_{sk}_VALIDATED.json", {"plan": validated_plan})
+
+            if validated_plan and image_base64:
+                valid_plans.append((sk, sp, validated_plan))
+                image_tasks.append(self._generate_layout_image(
+                    validated_plan, sk, sp, movable_objects, structural_objects,
+                    door_info, window_info, image_base64, movable_count, furniture_labels
+                ))
+
         if not image_tasks:
             raise ValueError("No valid layout plans generated")
-        
+
         images = await asyncio.gather(*image_tasks, return_exceptions=True)
-        
-        # STEP 5: Combine results
+
         variations = []
-        for i, (style_key, spec, plan) in enumerate(valid_plans):
-            image_result = images[i] if i < len(images) else None
-            
-            if isinstance(image_result, Exception):
-                print(f"[Designer] Image generation failed for {style_key}: {image_result}")
+        for i, (sk, sp, plan) in enumerate(valid_plans):
+            img = images[i] if i < len(images) else None
+            if isinstance(img, Exception):
+                print(f"[Designer] Image failed {sk}: {img}")
                 continue
-            
+            if img:
+                _save_debug_image(f"{self._debug_ts}_image_{sk}_OUTPUT.png", img)
             variations.append({
-                "name": spec["name"],
-                "style_key": style_key,
-                "description": plan.get("description", spec["description"]),
-                "layout": current_layout,  # Original layout preserved
-                "layout_plan": plan,  # Semantic plan
-                "thumbnail_base64": image_result if image_result else None,
-                "score": 75.0  # Placeholder
+                "name": sp["name"], "style_key": sk,
+                "description": plan.get("description", sp["description"]),
+                "layout": current_layout, "layout_plan": plan,
+                "thumbnail_base64": img,
             })
-            print(f"[Designer] {style_key} completed successfully")
-        
+
         if not variations:
             raise ValueError("Failed to generate any valid layouts")
-        
         return variations
 
+    # ========================================================================
+    # PREPARE OBJECTS
+    # ========================================================================
     def _prepare_objects(
-        self, current_layout: List[RoomObject], locked_ids: List[str], room_dims: RoomDimensions
+        self, current_layout: List[RoomObject], locked_ids: List[str]
     ) -> Tuple[Set[str], List[dict], List[dict], Optional[Dict], Optional[Dict]]:
-        """
-        Prepare objects and identify door/window positions.
-        
-        FIXED:
-        1. Properly extracts door/window info from structural objects with full bbox
-        2. Clean separation of movable vs locked/structural objects
-        3. No leakage of structural objects into movable list
-        """
-        # Build complete set of locked IDs (user-locked + structural)
-        complete_locked_ids: Set[str] = set(locked_ids)
-        
-        # First pass: identify all structural/locked objects
+
+        complete_locked = set(locked_ids)
         for obj in current_layout:
             if obj.type == ObjectType.STRUCTURAL or obj.is_locked:
-                complete_locked_ids.add(obj.id)
-        
-        # Second pass: separate into movable and structural lists
-        movable_objects: List[dict] = []
-        structural_objects: List[dict] = []
-        
-        # Track door and window info from actual structural objects
-        door_info: Optional[Dict] = None
-        window_info: Optional[Dict] = None
-        all_doors: List[Dict] = []
-        all_windows: List[Dict] = []
-        
+                complete_locked.add(obj.id)
+
+        movable, structural = [], []
+        all_doors, all_windows = [], []
+        pw, ph = self._pixel_width, self._pixel_height
+
         for obj in current_layout:
-            # Clean label for display
             clean_label = obj.label.lower().replace("_", " ").split("_")[0]
-            
             obj_dict = {
-                "id": obj.id,
-                "label": clean_label,
-                "full_label": obj.label,
+                "id": obj.id, "label": clean_label, "full_label": obj.label,
                 "bbox": obj.bbox.copy() if isinstance(obj.bbox, list) else list(obj.bbox),
             }
-            
-            # Check if this object is locked/structural
-            is_locked_or_structural = obj.id in complete_locked_ids
-            
-            if is_locked_or_structural:
-                # This is a structural/locked object - add to structural list
-                structural_objects.append(obj_dict)
-                
-                # Extract door info from actual door objects
+
+            if obj.id in complete_locked:
+                structural.append(obj_dict)
                 if "door" in obj.label.lower():
-                    door_data = self._extract_element_info(obj, room_dims, "door")
-                    all_doors.append(door_data)
-                
-                # Extract window info from actual window objects
+                    all_doors.append(self._extract_element_info(obj, pw, ph, "door"))
                 if "window" in obj.label.lower():
-                    window_data = self._extract_element_info(obj, room_dims, "window")
-                    all_windows.append(window_data)
+                    all_windows.append(self._extract_element_info(obj, pw, ph, "window"))
             else:
-                # This is a movable object - add to movable list
-                movable_objects.append(obj_dict)
-        
-        # Use the first/primary door and window (or combine if multiple)
-        if all_doors:
-            door_info = all_doors[0]
-            if len(all_doors) > 1:
-                door_info["additional_doors"] = all_doors[1:]
-        
-        if all_windows:
-            window_info = all_windows[0]
-            if len(all_windows) > 1:
-                window_info["additional_windows"] = all_windows[1:]
-        
-        return complete_locked_ids, movable_objects, structural_objects, door_info, window_info
+                movable.append(obj_dict)
 
-    def _extract_element_info(self, obj: RoomObject, room_dims: RoomDimensions, element_type: str) -> Dict:
-        """
-        Extract detailed position info for a door or window from its actual bbox.
-        
-        Returns comprehensive position data including:
-        - wall: which wall the element is on
-        - bbox: full bounding box [x, y, w, h]
-        - center: center point (x, y)
-        - position_percent: percentage position along the wall
-        """
-        # Safely extract bbox - handle both list and property access
+        door_info = all_doors[0] if all_doors else None
+        window_info = all_windows[0] if all_windows else None
+
+        # Fallback: infer window opposite door
+        if not window_info and door_info:
+            opposite = {"north (top)": "south (bottom)", "south (bottom)": "north (top)",
+                        "east (right)": "west (left)", "west (left)": "east (right)"}
+            inferred_wall = opposite.get(door_info["wall"], "west (left)")
+            window_info = {
+                "id": "inferred_window", "type": "window", "wall": inferred_wall,
+                "inferred": True, "x": 0, "y": 0, "width": 0, "height": 0,
+                "center_x": 0, "center_y": 0, "position_on_wall_percent": 50.0,
+            }
+            print(f"[Designer] No window detected — inferred on {inferred_wall} (opposite door)")
+
+        # Filter walls from structural list (visible in image, just adds noise)
+        structural_for_designer = [o for o in structural if o["label"] not in ("wall",)]
+        filtered = len(structural) - len(structural_for_designer)
+        if filtered > 0:
+            print(f"[Designer] Filtered {filtered} wall objects from structural list")
+
+        return complete_locked, movable, structural_for_designer, door_info, window_info
+
+    # ========================================================================
+    # HELPER METHODS
+    # ========================================================================
+    def _extract_element_info(self, obj: RoomObject, pw: int, ph: int, element_type: str) -> Dict:
+        """Wall detection using PIXEL coordinates."""
         bbox = obj.bbox if isinstance(obj.bbox, list) else list(obj.bbox)
-        x, y, w, h = bbox[0], bbox[1], bbox[2], bbox[3]
-        center_x = x + w / 2
-        center_y = y + h / 2
-        room_w = room_dims.width_estimate
-        room_h = room_dims.height_estimate
-        
-        # Determine which wall based on position
-        # Use actual position relative to room dimensions
-        wall = "interior"
-        position_on_wall = 0.0
-        
-        # Check proximity to each wall
-        dist_to_top = y
-        dist_to_bottom = room_h - (y + h)
-        dist_to_left = x
-        dist_to_right = room_w - (x + w)
-        
-        min_dist = min(dist_to_top, dist_to_bottom, dist_to_left, dist_to_right)
-        
-        if min_dist == dist_to_top and dist_to_top < room_h * 0.15:
-            wall = "north (top)"
-            position_on_wall = center_x / room_w * 100
-        elif min_dist == dist_to_bottom and dist_to_bottom < room_h * 0.15:
-            wall = "south (bottom)"
-            position_on_wall = center_x / room_w * 100
-        elif min_dist == dist_to_left and dist_to_left < room_w * 0.15:
-            wall = "west (left)"
-            position_on_wall = center_y / room_h * 100
-        elif min_dist == dist_to_right and dist_to_right < room_w * 0.15:
-            wall = "east (right)"
-            position_on_wall = center_y / room_h * 100
-        
-        return {
-            "id": obj.id,
-            "type": element_type,
-            "wall": wall,
-            "bbox": [x, y, w, h],
-            "x": x,
-            "y": y,
-            "width": w,
-            "height": h,
-            "center_x": center_x,
-            "center_y": center_y,
-            "position_on_wall_percent": round(position_on_wall, 1),
-        }
-
-    def _get_element_wall(self, bbox: List[int], room_dims: RoomDimensions) -> Dict:
-        """Determine which wall an element is on. (Legacy method - kept for compatibility)"""
         x, y, w, h = bbox
-        center_x, center_y = x + w/2, y + h/2
-        room_w, room_h = room_dims.width_estimate, room_dims.height_estimate
-        
-        # Determine wall based on position
-        if y < room_h * 0.15:
-            wall = "north (top)"
-        elif y + h > room_h * 0.85:
-            wall = "south (bottom)"
-        elif x < room_w * 0.15:
-            wall = "west (left)"
-        elif x + w > room_w * 0.85:
-            wall = "east (right)"
-        else:
-            wall = "interior"
-        
-        return {"wall": wall, "x": x, "y": y}
+        cx, cy = x + w / 2, y + h / 2
+
+        wall, pct = "interior", 50.0
+        margin_x, margin_y = pw * 0.15, ph * 0.15
+
+        dist_top, dist_bot = y, ph - (y + h)
+        dist_left, dist_right = x, pw - (x + w)
+        min_dist = min(dist_top, dist_bot, dist_left, dist_right)
+
+        if min_dist == dist_top and dist_top < margin_y:
+            wall, pct = "north (top)", cx / pw * 100
+        elif min_dist == dist_bot and dist_bot < margin_y:
+            wall, pct = "south (bottom)", cx / pw * 100
+        elif min_dist == dist_left and dist_left < margin_x:
+            wall, pct = "west (left)", cy / ph * 100
+        elif min_dist == dist_right and dist_right < margin_x:
+            wall, pct = "east (right)", cy / ph * 100
+
+        return {"id": obj.id, "type": element_type, "wall": wall,
+                "bbox": [x, y, w, h], "x": x, "y": y, "width": w, "height": h,
+                "center_x": cx, "center_y": cy, "position_on_wall_percent": round(pct, 1)}
 
     def _classify_furniture_to_zones(self, movable_objects: List[dict]) -> Dict[ZoneType, List[str]]:
-        """Classify furniture into zones based on label."""
         zones = {ZoneType.WORK: [], ZoneType.SLEEP: [], ZoneType.LIVING: []}
-        
         for obj in movable_objects:
             label = obj["label"].lower()
             assigned = False
@@ -429,256 +354,360 @@ class InteriorDesignerAgent:
                     assigned = True
                     break
             if not assigned:
-                zones[ZoneType.LIVING].append(obj["id"])
-        
+                if "chair" in label:
+                    zones[ZoneType.WORK].append(obj["id"])
+                else:
+                    zones[ZoneType.LIVING].append(obj["id"])
         return zones
 
+    def _build_exclusion_zones(self, structural_objects: List[dict]) -> str:
+        """Convert structural bboxes into no-go zone descriptions."""
+        zones = []
+        pw, ph = self._pixel_width, self._pixel_height
+        for obj in structural_objects:
+            label = obj["label"]
+            if label in ("window", "door", "wall", "shelf", "cabinet"):
+                continue
+            bbox = obj["bbox"]
+            x, y, w, h = bbox
+            cx, cy = x + w / 2, y + h / 2
+            x_pos = "left (west)" if cx < pw * 0.33 else ("center" if cx < pw * 0.66 else "right (east)")
+            y_pos = "top (north)" if cy < ph * 0.33 else ("middle" if cy < ph * 0.66 else "bottom (south)")
+            area_pct = (w * h) / (pw * ph) * 100
+            if area_pct < 0.5:
+                continue
+            zones.append(f"  - {label} ({obj['id']}): fixed at {y_pos}-{x_pos}. NO furniture here.")
+        if not zones:
+            return ""
+        return "⚠️ EXCLUSION ZONES — furniture MUST NOT overlap these fixed fixtures:\n" + "\n".join(zones)
+
+    def _validate_plan_against_structures(self, plan: Dict, structural_objects: List[dict], style_key: str) -> List[str]:
+        """Log warnings if placements might overlap structural objects."""
+        warnings = []
+        pw, ph = self._pixel_width, self._pixel_height
+        floor_fixtures = {}
+        for obj in structural_objects:
+            if obj["label"] in ("window", "door", "wall", "shelf", "cabinet"):
+                continue
+            bbox = obj["bbox"]
+            cx, cy = bbox[0] + bbox[2] / 2, bbox[1] + bbox[3] / 2
+            x_z = "west" if cx < pw * 0.33 else ("center" if cx < pw * 0.66 else "east")
+            y_z = "north" if cy < ph * 0.33 else ("center" if cy < ph * 0.66 else "south")
+            floor_fixtures[obj["id"]] = {"label": obj["label"], "zone": f"{y_z}-{x_z}"}
+
+        for furn_id, desc in plan.get("furniture_placement", {}).items():
+            desc_lower = desc.lower()
+            for struct_id, info in floor_fixtures.items():
+                if info["label"] in desc_lower or struct_id in desc_lower:
+                    warnings.append(f"[{style_key}] '{furn_id}' references '{info['label']}' ({struct_id}) — potential overlap")
+        for w in warnings:
+            print(f"[Designer WARNING] {w}")
+        return warnings
+
+    def _build_reinforcement(self, style_key: str, spec: Dict, window_wall: str, door_wall: str) -> str:
+        """Auto-generate image reinforcement from the technical_spec.
+        This ensures the image prompt always matches the spec exactly."""
+        tech = spec.get("technical_spec", {})
+        lines = [f"⚠️ {spec['name'].upper()} — KEY RULES FOR IMAGE GENERATION:"]
+        for key, value in tech.items():
+            # Replace generic wall references with actual detected walls
+            rule = value.replace("{window_wall}", window_wall).replace("{door_wall}", door_wall)
+            lines.append(f"- {rule}")
+        lines.append("- The output MUST look visibly DIFFERENT from the input image.")
+        return "\n".join(lines)
+
+    # ========================================================================
+    # VALIDATION — refine plan against actual room image
+    # ========================================================================
+    @traceable(name="validate_layout_compliance", run_type="llm", tags=["gemini", "validation"])
+    async def _validate_layout_compliance(
+        self, image_base64: str, layout_plan: Dict, layout_spec: Dict, style_key: str
+    ) -> Dict:
+        """Validate and refine layout plan using the actual room image."""
+        if not image_base64:
+            return layout_plan
+
+        constraints = layout_spec.get("technical_spec", {})
+        constraints_text = "\n".join([f"- {v}" for v in constraints.values()]) if constraints else "No specific constraints."
+
+        prompt = f"""You are an Expert Interior Design Validator.
+
+## GOAL
+Verify if the proposed furniture layout matches the designated STYLE in this specific room.
+If the placement instructions are vague, generic, or violate the style, REWRITE them to be specific and correct.
+
+## ROOM IMAGE
+(Attached)
+
+## STYLE GOAL: "{layout_spec['name']}"
+{layout_spec['description']}
+
+## STRICT CONSTRAINTS (MUST VERIFY):
+{constraints_text}
+
+## PROPOSED PLAN
+{json.dumps(layout_plan.get('furniture_placement', {}), indent=2)}
+
+## YOUR TASK
+1. Look at the room image. Identify constraints (doors, windows, odd corners, kitchen, bathroom).
+2. Check if the "PROPOSED PLAN" actually achieves the "{layout_spec['name']}" goal in THIS specific room.
+3. If a furniture item's position is not ideal for this style, change it.
+4. If a furniture item would overlap a structural fixture (toilet, shower, sink, stove), move it.
+5. If a furniture item is blocking a door/path, move it.
+6. Return the REFINED placement dictionary.
+
+## OUTPUT FORMAT (JSON)
+{{
+  "furniture_placement": {{
+    "furniture_id": "refined specific instruction...",
+    ...
+  }},
+  "changes_made": ["list of changes and reasoning..."]
+}}"""
+
+        contents = [prompt]
+        clean_b64 = image_base64.split(",")[1] if "," in image_base64 else image_base64
+        try:
+            image_data = base64.b64decode(clean_b64)
+            contents.insert(0, types.Part.from_bytes(data=image_data, mime_type="image/jpeg"))
+        except Exception as e:
+            print(f"[Designer] Validation image decode failed: {e}")
+            return layout_plan
+
+        try:
+            response = await asyncio.to_thread(
+                self.client.models.generate_content, model=self.model,
+                contents=contents,
+                config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.2)
+            )
+            data = json.loads(response.text)
+
+            # Merge refined placements — only update existing items, don't drop any
+            refined = data.get("furniture_placement", {})
+            original = layout_plan.get("furniture_placement", {})
+            for k, v in refined.items():
+                if k in original:
+                    original[k] = v
+            layout_plan["furniture_placement"] = original
+
+            if data.get("changes_made"):
+                print(f"[Designer VALIDATOR] Changes for {style_key}: {data['changes_made']}")
+                _save_debug_json(f"{self._debug_ts}_plan_{style_key}_VALIDATION_CHANGES.json", {
+                    "changes": data["changes_made"], "refined_placements": refined
+                })
+
+            return layout_plan
+        except Exception as e:
+            print(f"[Designer] Validation failed for {style_key}: {e}")
+            return layout_plan
+
+    # ========================================================================
+    # PLAN GENERATION — now receives image for visual context
+    # ========================================================================
     @traceable(name="generate_layout_plan", run_type="llm", tags=["gemini", "planning"])
     async def _generate_layout_plan(
-        self,
-        style_key: str,
-        spec: Dict,
-        zone_assignments: Dict[ZoneType, List[str]],
-        movable_objects: List[dict],
-        structural_objects: List[dict],
-        room_dims: RoomDimensions,
-        door_info: Optional[Dict],
-        window_info: Optional[Dict]
+        self, style_key, spec, zone_assignments, movable_objects,
+        structural_objects, room_dims, door_info, window_info, image_base64=None
     ) -> Dict[str, Any]:
-        """Generate semantic layout plan with RELATIVE positioning only."""
-        
-        # Build furniture by zone
-        obj_lookup = {obj["id"]: obj for obj in movable_objects}
+
+        obj_lookup = {o["id"]: o for o in movable_objects}
         zone_furniture = {}
-        for zone_type, obj_ids in zone_assignments.items():
-            zone_furniture[zone_type.value] = [
-                {"id": oid, "label": obj_lookup[oid]["label"]}
-                for oid in obj_ids if oid in obj_lookup
-            ]
-        
-        tech_spec = json.dumps(spec.get("technical_spec", {}), indent=2)
-        
-        # Build detailed door/window descriptions from actual positions
-        if door_info:
-            door_desc = f"on the {door_info['wall']} wall at position {door_info.get('position_on_wall_percent', 50)}% along the wall (bbox: x={door_info['x']}, y={door_info['y']}, w={door_info.get('width', 'unknown')}, h={door_info.get('height', 'unknown')})"
+        for zt, ids in zone_assignments.items():
+            zone_furniture[zt.value] = [{"id": i, "label": obj_lookup[i]["label"]} for i in ids if i in obj_lookup]
+
+        constraints = spec.get("technical_spec", {})
+        constraints_text = "\n".join([f"- {v}" for v in constraints.values()]) if constraints else "No specific constraints."
+
+        door_desc = f"on the {door_info['wall']} wall at ~{door_info.get('position_on_wall_percent', 50):.0f}% along that wall" if door_info else "location unknown"
+        if window_info and window_info.get("inferred"):
+            window_desc = f"INFERRED on the {window_info['wall']} wall (assume this is where light comes from)"
+        elif window_info:
+            window_desc = f"on the {window_info['wall']} wall at ~{window_info.get('position_on_wall_percent', 50):.0f}% along that wall"
         else:
-            door_desc = "location unknown"
-        
-        if window_info:
-            window_desc = f"on the {window_info['wall']} wall at position {window_info.get('position_on_wall_percent', 50)}% along the wall (bbox: x={window_info['x']}, y={window_info['y']}, w={window_info.get('width', 'unknown')}, h={window_info.get('height', 'unknown')})"
-        else:
-            window_desc = "location unknown"
-        
+            window_desc = "not detected"
+
+        exclusion_text = self._build_exclusion_zones(structural_objects)
+
         prompt = f"""You are an expert interior designer creating a "{spec['name']}" layout.
 
 ## ROOM INFO
-- Room dimensions: {room_dims.width_estimate} x {room_dims.height_estimate} units
+- Room dimensions: ~{room_dims.width_estimate:.0f} x {room_dims.height_estimate:.0f} feet
 - Door: {door_desc}
 - Window: {window_desc}
 
 ## STYLE: {spec['name']}
 {spec['description']}
 
-## TECHNICAL REQUIREMENTS
-{tech_spec}
+## SPECIFIC CONSTRAINTS (MUST FOLLOW):
+{constraints_text}
 
 ## FURNITURE TO ARRANGE (by zone)
 {json.dumps(zone_furniture, indent=2)}
 
 ## STRUCTURAL ELEMENTS (DO NOT MOVE)
-{json.dumps([obj for obj in structural_objects], indent=2)}
+{json.dumps(structural_objects, indent=2)}
+
+{exclusion_text}
 
 ## YOUR TASK
-Create a layout plan using RELATIVE/SEMANTIC positions only (no pixel coordinates).
-Describe WHERE each piece of furniture should go relative to:
-- Walls (north/south/east/west wall)
-- Other furniture (next to bed, across from desk)
-- Structural elements (near window, facing door)
+Create a layout plan using RELATIVE/SEMANTIC positions only.
+Describe WHERE each piece goes relative to walls, other furniture, and structural elements.
 
 ## CRITICAL RULES
-1. DOOR CLEARANCE: Nothing may block the door. Keep clear path from door into room.
-2. Include ALL furniture items listed above - do not skip any.
-3. Follow the style requirements exactly.
-4. Do not add any new furniture, people, decorations, or objects.
-
+1. DOOR CLEARANCE: Nothing may block the door.
+2. Include ALL furniture — do not skip any.
+3. Follow the SPECIFIC CONSTRAINTS exactly — they are non-negotiable.
+4. Do not add any new furniture.
+5. Use the ACTUAL furniture labels from the list above (e.g. "table_1" not "desk").
+6. Do NOT place any movable furniture where it would overlap a fixed fixture (toilet, shower, sink, stove, refrigerator).
 
 ## OUTPUT FORMAT (JSON)
 {{
   "description": "2-3 sentences explaining the design rationale",
   "furniture_placement": {{
-    "bed": "against south wall, centered, headboard to wall",
-    "desk": "adjacent to window on east wall, chair facing door",
-    "nightstand": "right side of bed, against wall",
-    ... (include ALL furniture)
+    "<furniture_id>": "<relative position description>",
+    ...
   }},
-  "door_clearance": "describe how door area is kept clear",
+  "door_clearance": "how door area is kept clear",
   "zone_arrangement": {{
-    "work_zone": "east side of room near window",
-    "sleep_zone": "south wall, focal point",
-    "living_zone": "north corner near entrance"
+    "work_zone": "location description",
+    "sleep_zone": "location description",
+    "living_zone": "location description"
   }}
 }}"""
 
-        response = await asyncio.to_thread(
-            self.client.models.generate_content,
-            model=self.model,
-            contents=[prompt],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.3
-            )
-        )
-        
-        return json.loads(response.text)
+        _save_debug_json(f"{self._debug_ts}_plan_{style_key}_INPUT.json", {
+            "style_key": style_key, "full_prompt": prompt,
+            "door_info": door_info, "window_info": window_info,
+        })
 
+        # Build contents: image (if available) + text prompt
+        contents = [prompt]
+        if image_base64:
+            clean_b64 = image_base64.split(",")[1] if "," in image_base64 else image_base64
+            try:
+                img_data = base64.b64decode(clean_b64)
+                contents.insert(0, types.Part.from_bytes(data=img_data, mime_type="image/jpeg"))
+            except Exception as e:
+                print(f"[Designer] Failed to decode image for plan {style_key}: {e}")
+
+        response = await asyncio.to_thread(
+            self.client.models.generate_content, model=self.model,
+            contents=contents,
+            config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.3)
+        )
+        result = json.loads(response.text)
+        self._validate_plan_against_structures(result, structural_objects, style_key)
+        _save_debug_json(f"{self._debug_ts}_plan_{style_key}_OUTPUT.json", {"plan": result})
+        return result
+
+    # ========================================================================
+    # IMAGE GENERATION
+    # ========================================================================
     @traceable(name="generate_layout_image", run_type="llm", tags=["gemini", "image"])
     async def _generate_layout_image(
-        self,
-        layout_plan: Dict,
-        style_key: str,
-        spec: Dict,
-        movable_objects: List[dict],
-        structural_objects: List[dict],
-        door_info: Optional[Dict],
-        window_info: Optional[Dict],
-        image_base64: str,
-        movable_count: int,
-        furniture_labels: List[str]
+        self, layout_plan, style_key, spec, movable_objects, structural_objects,
+        door_info, window_info, image_base64, movable_count, furniture_labels
     ) -> Optional[str]:
-        """Generate layout image using semantic plan with STRICT rules."""
-        
-        # Build furniture placement from plan
-        furniture_placement = layout_plan.get("furniture_placement", {})
-        placement_instructions = []
-        for item, position in furniture_placement.items():
-            placement_instructions.append(f"  • {item.upper()}: {position}")
-        
-        placement_text = "\n".join(placement_instructions) if placement_instructions else "Follow zone arrangement"
-        
-        zone_arrangement = layout_plan.get("zone_arrangement", {})
-        zone_text = "\n".join([f"  • {zone}: {location}" for zone, location in zone_arrangement.items()])
-        
-        # Use detailed door/window info
-        if door_info:
-            door_wall = door_info['wall']
-            door_position = f"at {door_info.get('position_on_wall_percent', 50)}% along the wall"
-        else:
-            door_wall = "unknown"
-            door_position = ""
-        
-        if window_info:
-            window_wall = window_info['wall']
-            window_position = f"at {window_info.get('position_on_wall_percent', 50)}% along the wall"
-        else:
-            window_wall = "unknown"
-            window_position = ""
-        
+
+        placement = layout_plan.get("furniture_placement", {})
+        placement_text = "\n".join([f"  • {k.upper()}: {v}" for k, v in placement.items()]) or "Follow zone arrangement"
+        zone_arr = layout_plan.get("zone_arrangement", {})
+        zone_text = "\n".join([f"  • {z}: {loc}" for z, loc in zone_arr.items()])
+
+        door_wall = door_info['wall'] if door_info else "unknown"
+        door_pct = f"at ~{door_info.get('position_on_wall_percent', 50):.0f}%" if door_info else ""
+        window_wall = window_info['wall'] if window_info else "unknown"
+        window_pct = f"at ~{window_info.get('position_on_wall_percent', 50):.0f}%" if window_info else ""
+
         furniture_list_str = ", ".join(furniture_labels)
-        
-        # Build list of structural elements that must not be moved
-        structural_list = ", ".join([obj["label"] for obj in structural_objects])
-        
-        prompt = f"""TASK: Edit this 2D top-down floor plan to show the "{spec['name']}" furniture arrangement.
+        structural_list = ", ".join([o["label"] for o in structural_objects])
+        exclusion_text = self._build_exclusion_zones(structural_objects)
 
-╔══════════════════════════════════════════════════════════════════════════════╗
-║  ⚠️  STRICT RULES - VIOLATIONS MAKE OUTPUT INVALID                            ║
-╠══════════════════════════════════════════════════════════════════════════════╣
-║                                                                              ║
-║  1. OBJECT COUNT: Exactly {movable_count} movable furniture items must appear.     ║
-║     Count them: {movable_count} items in, {movable_count} items out. No exceptions.              ║
-║                                                                              ║
-║  2. REQUIRED FURNITURE (ALL must be visible in output):                      ║
-║     [{furniture_list_str}]
-║                                                                              ║
-║  3. DO NOT ADD any new furniture, people, decorations, or objects.           ║
-║                                                                              ║
-║  4. DO NOT REMOVE any furniture from the list above.                         ║
-║                                                                              ║
-║  5. DOOR ({door_wall} wall {door_position}): Keep 2+ feet CLEAR in front of door.                 ║
-║     NO furniture blocking the door entrance.                                 ║
-║                                                                              ║
-║  6. DO NOT MOVE STRUCTURAL ELEMENTS: [{structural_list}]                     ║
-║     These are fixed in place and cannot be repositioned.                     ║
-║                                                                              ║
-║  7. OUTPUT MUST BE 2D TOP-DOWN VIEW - NOT 3D perspective.                    ║
-║                                                                              ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+        # Auto-generate reinforcement from technical_spec
+        reinforcement = self._build_reinforcement(style_key, spec, window_wall, door_wall)
 
-LAYOUT STYLE: {spec['name']}
+        # Count furniture types for anti-duplication
+        from collections import Counter
+        label_counts = Counter(furniture_labels)
+        count_str = ", ".join([f"{count} {label}{'s' if count > 1 else ''}" for label, count in label_counts.items()])
+
+        prompt = f"""TASK: Edit this 2D top-down floor plan to show the "{spec['name']}" arrangement.
+
+╔══════════════════════════════════════════════════════════════╗
+║  ⚠️  STRICT RULES                                            ║
+╠══════════════════════════════════════════════════════════════╣
+║  1. Exactly {movable_count} movable items must appear.           ║
+║  2. REQUIRED: [{furniture_list_str}]                             ║
+║  3. DO NOT ADD or REMOVE any furniture.                      ║
+║  4. DOOR ({door_wall} {door_pct}): 2+ feet clear.               ║
+║  5. DO NOT MOVE: [{structural_list}]                             ║
+║  6. OUTPUT = 2D TOP-DOWN VIEW (not 3D).                      ║
+╚══════════════════════════════════════════════════════════════╝
+
+⚠️ DO NOT DUPLICATE FURNITURE:
+- This room has exactly: {count_str}.
+- MOVE = ERASE from old spot + PLACE in new spot. Do NOT copy.
+- If the same item appears in TWO places, the output is INVALID.
+- COUNT each furniture type before finishing. Counts must match input.
+
+{exclusion_text}
+
+STYLE: {spec['name']}
 {layout_plan.get('description', spec['description'])}
 
-FURNITURE PLACEMENT:
+FURNITURE PLACEMENT — FOLLOW EXACTLY:
 {placement_text}
 
-ZONE ARRANGEMENT:
+ZONES:
 {zone_text}
 
-{f"SPECIAL RULE: For Space Optimized layout, ensure the CENTER of the room is EMPTY floor space." if style_key == "space_optimized" else ""}
+{reinforcement}
 
-DOOR CLEARANCE PLAN:
-{layout_plan.get('door_clearance', 'Keep door area clear of all furniture')}
+DOOR CLEARANCE: {layout_plan.get('door_clearance', 'Keep door clear')}
 
-STRUCTURAL ELEMENTS (do not move):
-- Door: {door_wall} wall {door_position}
-- Window: {window_wall} wall {window_position}
-- Other fixed elements: {structural_list}
+STRUCTURAL (fixed): Door={door_wall} {door_pct}, Window={window_wall} {window_pct}, Others=[{structural_list}]
 
-OUTPUT REQUIREMENTS:
-1. Same 2D top-down floor plan perspective as input
-2. Same visual style, colors, line weights as input
-3. All {movable_count} furniture items visible in new positions
-4. Professional architectural floor plan appearance
-5. Clear walkway from door into room
+OUTPUT: Same 2D style as input, all {movable_count} items in their NEW positions, professional floor plan.
+Do NOT place furniture on top of kitchen appliances, bathroom fixtures, or any structural element.
+Edit the floor plan to show "{spec['name']}"."""
 
-Edit the floor plan to show this "{spec['name']}" arrangement."""
+        _save_debug_json(f"{self._debug_ts}_image_{style_key}_INPUT.json", {
+            "style_key": style_key, "reinforcement": reinforcement,
+            "exclusion_zones": exclusion_text, "full_prompt": prompt,
+        })
 
-        # Prepare image
         if "," in image_base64:
             image_base64 = image_base64.split(",")[1]
-        
+
         try:
             image_data = base64.b64decode(image_base64)
-            
             response = await asyncio.to_thread(
-                self.client.models.generate_content,
-                model=self.image_model,
-                contents=[
-                    types.Part.from_bytes(data=image_data, mime_type="image/jpeg"),
-                    prompt
-                ],
-                config=types.GenerateContentConfig(
-                    response_modalities=["IMAGE", "TEXT"],
-                    temperature=0.1  # Very low for faithful editing
-                )
+                self.client.models.generate_content, model=self.image_model,
+                contents=[types.Part.from_bytes(data=image_data, mime_type="image/jpeg"), prompt],
+                config=types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"], temperature=0.3)
             )
-            
             if response.candidates:
                 for part in response.candidates[0].content.parts:
                     if hasattr(part, 'inline_data') and part.inline_data:
                         return base64.b64encode(part.inline_data.data).decode('utf-8')
-            
             return None
-            
         except Exception as e:
-            print(f"[Designer] Image generation error for {style_key}: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"[Designer] Image error {style_key}: {e}")
+            import traceback; traceback.print_exc()
             return None
 
 
 # ============================================================================
-# LANGGRAPH NODE FUNCTIONS
+# LANGGRAPH NODES
 # ============================================================================
-
 @traceable(name="designer_node", run_type="chain", tags=["langgraph", "node"])
 async def designer_node(state: AgentState) -> Dict[str, Any]:
     designer = InteriorDesignerAgent()
     try:
         variations = await designer.generate_layout_variations(
-            current_layout=state["current_layout"],
-            room_dims=state["room_dimensions"],
-            locked_ids=state.get("locked_object_ids", []),
-            image_base64=state.get("image_base64")
+            current_layout=state["current_layout"], room_dims=state["room_dimensions"],
+            locked_ids=state.get("locked_object_ids", []), image_base64=state.get("image_base64")
         )
         return {
             "layout_variations": variations,
@@ -688,10 +717,8 @@ async def designer_node(state: AgentState) -> Dict[str, Any]:
             "iteration_count": state.get("iteration_count", 0) + 1
         }
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        import traceback; traceback.print_exc()
         return {"error": f"Designer failed: {str(e)}", "should_continue": False}
-
 
 def designer_node_sync(state: AgentState) -> Dict[str, Any]:
     return asyncio.run(designer_node(state))

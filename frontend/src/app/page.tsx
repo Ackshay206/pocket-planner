@@ -14,6 +14,7 @@ import { useAnalyze } from '@/hooks/useAnalyze';
 import { useOptimize } from '@/hooks/useOptimize';
 import { usePerspective } from '@/hooks/usePerspective';
 import { useChatEdit } from '@/hooks/useChatEdit';
+import { Layout, Maximize2, Sparkles } from 'lucide-react';
 import type { RoomObject, RoomDimensions, LayoutVariation, AppStage } from '@/lib/types';
 
 interface AppState {
@@ -27,7 +28,7 @@ interface AppState {
   selectedVariation: LayoutVariation | null;
   perspectiveImage: string | null;
   currentLayout: RoomObject[];
-  generatingStep: number; // Track which step of generation we're on
+  generatingStep: number;
 }
 
 const initialState: AppState = {
@@ -71,15 +72,18 @@ export default function PocketPlannerApp() {
         const reader = new FileReader();
         reader.onloadend = () => {
           const base64 = reader.result as string;
-          setState(prev => ({ ...prev, image: base64 }));
-          toast.success('Test image loaded! Click "Analyze Room" to start.');
+          // Only auto-load if no image is present? 
+          // Actually user said "make image analysis the first page". 
+          // Auto-loading test image might bypass the "Upload" hero view.
+          // Let's Comment this out to force the "First Page" experience or keep it but checking constraints.
+          // setState(prev => ({ ...prev, image: base64 }));
         };
-        reader.readAsDataURL(blob);
+        // reader.readAsDataURL(blob);
       } catch (error) {
-        console.log('No test image found, starting fresh.');
+        console.log('No test image found');
       }
     };
-    loadTestImage();
+    // loadTestImage();
   }, []);
 
   // Step through generation animation
@@ -141,13 +145,10 @@ export default function PocketPlannerApp() {
   }, [state.image, analyze]);
 
   // Generate Layouts
-  // === Generate Layouts ===
-  // FIXED: locked_ids now includes ALL structural objects AND any user-locked objects
   const handleGenerateLayouts = useCallback(async () => {
     if (!state.roomDimensions || state.objects.length === 0) return;
 
     try {
-      // Collect locked IDs: structural objects + user-locked objects
       const lockedIds = state.objects
         .filter(o => o.is_locked || o.type === 'structural')
         .map(o => o.id);
@@ -169,7 +170,7 @@ export default function PocketPlannerApp() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to generate layouts');
     }
-  }, [state.roomDimensions, state.objects, optimize]);
+  }, [state.roomDimensions, state.objects, optimize, state.image]);
 
   // Select Layout
   const handleSelectLayout = useCallback(async (variation: LayoutVariation) => {
@@ -186,6 +187,8 @@ export default function PocketPlannerApp() {
           layout: variation.layout,
           room_dimensions: state.roomDimensions,
           style: 'modern',
+          image_base64: variation.thumbnail_base64 || undefined,
+          layout_plan: variation.layout_plan || undefined,
         });
 
         setState(prev => ({
@@ -254,9 +257,13 @@ export default function PocketPlannerApp() {
     }
   }, [state.roomDimensions, state.currentLayout, state.perspectiveImage, sendCommand]);
 
+  // Reset
+  const handleReset = useCallback(() => {
+    setState(initialState);
+  }, []);
+
   // Render based on stage
   const renderContent = () => {
-    // Show generating overlay when optimizing
     if (isOptimizing) {
       return (
         <GeneratingOverlay
@@ -304,9 +311,48 @@ export default function PocketPlannerApp() {
 
       case 'analyze':
       default:
+        // Hero / Upload State
+        if (!state.image) {
+          return (
+            <div className="max-w-5xl mx-auto px-6 py-12">
+              <div className="text-center mb-16 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <h1 className="text-5xl md:text-6xl font-bold tracking-tighter text-black mb-6">
+                  Interior Design <br />
+                  <span className="text-gray-400 font-light italic">Reimagined by AI</span>
+                </h1>
+                <p className="text-lg text-gray-500 max-w-xl mx-auto leading-relaxed">
+                  Upload your floor plan and let our AI generate optimized, beautiful styling options instantly.
+                </p>
+              </div>
+
+              <div className="max-w-2xl mx-auto shadow-2xl shadow-gray-200/50 rounded-3xl overflow-hidden animate-in fade-in zoom-in-95 duration-700 delay-150">
+                <ImageUpload onImageSelect={handleImageSelect} />
+              </div>
+
+              <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8 text-center opacity-60">
+                <div>
+                  <Layout className="w-6 h-6 mx-auto mb-3" />
+                  <h3 className="font-semibold mb-1">Smart Analysis</h3>
+                  <p className="text-sm text-gray-400">Instantly detects structure & furniture</p>
+                </div>
+                <div>
+                  <Sparkles className="w-6 h-6 mx-auto mb-3" />
+                  <h3 className="font-semibold mb-1">AI Design</h3>
+                  <p className="text-sm text-gray-400">Generates 3 unique style variations</p>
+                </div>
+                <div>
+                  <Maximize2 className="w-6 h-6 mx-auto mb-3" />
+                  <h3 className="font-semibold mb-1">Space Optimization</h3>
+                  <p className="text-sm text-gray-400">Maximizes flow and functionality</p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        // Split view for Analysis/Optimizing
         return (
           <div className="flex flex-col gap-6">
-            {/* Main content area */}
             <div className="flex flex-col lg:flex-row gap-6">
               {/* Floor Plan Viewer */}
               <div className="flex-1 min-w-0">
@@ -317,39 +363,24 @@ export default function PocketPlannerApp() {
                     selectedObjectId={state.selectedObjectId}
                     onObjectSelect={handleObjectSelect}
                   />
-                ) : state.image ? (
+                ) : (
+                  // analyzing state visualization
                   <div className="floor-plan-container p-4">
                     <img
                       src={state.image}
                       alt="Floor plan"
-                      className="w-full h-auto rounded-xl"
+                      className="w-full h-auto rounded-none"
                     />
-                    <div className="text-center mt-4">
+                    <div className="text-center mt-6">
                       <button
                         onClick={handleAnalyze}
                         disabled={state.isAnalyzing}
-                        className="btn-analyze inline-flex items-center gap-2 px-6 py-3"
+                        className="bg-black text-white px-8 py-3 font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
                       >
-                        {state.isAnalyzing ? (
-                          <>
-                            <span className="animate-spin">⏳</span>
-                            Analyzing...
-                          </>
-                        ) : (
-                          <>
-                            <span>🔍</span>
-                            Analyze Room
-                          </>
-                        )}
+                        {state.isAnalyzing ? 'Analyzing...' : 'Analyze Room'}
                       </button>
                     </div>
                   </div>
-                ) : (
-                  <ImageUpload
-                    onImageSelect={handleImageSelect}
-                    currentImage={state.image}
-                    disabled={state.isAnalyzing}
-                  />
                 )}
               </div>
 
@@ -389,35 +420,43 @@ export default function PocketPlannerApp() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f3f0]">
+    <div className="min-h-screen bg-white">
       <Toaster
         position="top-right"
         toastOptions={{
           className: '!bg-white !text-gray-800 !shadow-lg',
-          style: { borderRadius: '12px' },
+          style: { borderRadius: '0', border: '1px solid #e5e5e5' },
         }}
       />
 
       {/* Header */}
-      <header className="py-8 text-center">
-        <h1 className="title-script text-4xl md:text-5xl text-[#6b7aa1]">
-          Pocket Planner
-        </h1>
-        {/* Stage indicator */}
-        <div className="flex justify-center gap-2 mt-4">
-          {['analyze', 'layouts', 'perspective', 'chat'].map((s) => (
-            <div
-              key={s}
-              className={`w-2 h-2 rounded-full transition-colors ${state.stage === s ? 'bg-[#6b7aa1]' : 'bg-gray-300'
-                }`}
-            />
-          ))}
+      <header className="py-6 border-b border-gray-100 mb-8 sticky top-0 bg-white/80 backdrop-blur z-50">
+        <div className="max-w-7xl mx-auto px-4 flex justify-between items-center">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={handleReset}>
+            <div className="w-8 h-8 bg-black flex items-center justify-center rounded-lg">
+              <span className="text-white font-serif font-bold text-lg">P</span>
+            </div>
+            <span className="font-bold text-xl tracking-tight">PocketPlanner</span>
+          </div>
+
+          {/* Stage indicator - only show if image uploaded */}
+          {state.image && (
+            <div className="flex gap-2">
+              {['analyze', 'layouts', 'perspective', 'chat'].map((s) => (
+                <div
+                  key={s}
+                  className={`w-2 h-2 rounded-full transition-colors ${state.stage === s ? 'bg-black' : 'bg-gray-200'
+                    }`}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </header>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 pb-8">
-        <div className="card p-4 md:p-6">
+        <div className={state.image ? "bg-white p-6 border border-gray-100 rounded-2xl shadow-sm" : ""}>
           {renderContent()}
         </div>
       </main>

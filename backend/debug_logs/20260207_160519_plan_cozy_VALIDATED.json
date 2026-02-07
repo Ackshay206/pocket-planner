@@ -1,0 +1,27 @@
+{
+  "plan": {
+    "description": "This layout creates a 'Cozy Retreat' by establishing a unified lounging and sleeping block as the central feature. The bed is positioned as the focal point upon entry, and the sofa is placed at its foot to form an intimate, multi-functional relaxation zone. The work area is intentionally tucked into a corner to keep the main space dedicated to comfort and rest.",
+    "furniture_placement": {
+      "bed_1": "Centered on the south wall, with the headboard positioned between the two low windows, serving as the focal point when entering the room.",
+      "nightstand_1": "Positioned to the left of the head of bed_1, against the south wall.",
+      "nightstand_2": "Positioned to the right of the head of bed_1, against the south wall.",
+      "sofa_1": "Positioned at the foot of bed_1, facing the bed to form a unified lounging area. Ensure a 2-3 foot walkway between the sofa and the bed for comfortable passage.",
+      "table_1": "Tucked into the southwest corner of the room, keeping the main walkway from the entrance clear and out of the primary sightline.",
+      "chair_1": "Placed at table_1. Keep tucked under when not in use to maximize floor space.",
+      "chair_2": "Placed at table_1. Keep tucked under when not in use to maximize floor space.",
+      "artwork_1": "Mounted on the west wall, centered above table_1 to create a distinct work/dining vignette.",
+      "artwork_2": "Center a large piece of art on the now-open east wall to visually balance the room.",
+      "plant_1": "Placed in the northeast corner, adding life and filling the space between the main living area and the bathroom entrance.",
+      "rug_1": "Place a large area rug centered under the bed and sofa combination, extending at least 24 inches beyond the sides and foot to anchor the entire relaxation zone.",
+      "rug_2": "Place a smaller rug under table_1 and its chairs to visually define the work/dining zone.",
+      "lamp_1": "Placed on top of nightstand_1.",
+      "lamp_2": "Placed on top of nightstand_2."
+    },
+    "door_clearance": "The main walkway from the door into the room is kept completely clear. All furniture is arranged in the southern and western portions of the room, ensuring an unobstructed path from the entrance.",
+    "zone_arrangement": {
+      "work_zone": "Contained in the southwest corner of the room, keeping it functionally separate from the primary relaxation area.",
+      "sleep_zone": "Located along the south wall, making it the central focal point of the room as intended.",
+      "living_zone": "Integrated directly with the sleep zone in the center of the room, forming a cohesive block for relaxation. Decorative elements are placed along the perimeter walls to complement this central feature."
+    }
+  }
+}

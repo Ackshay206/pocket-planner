@@ -24,59 +24,57 @@ export function OptimizePanel({
     const structuralCount = objects.filter(o => o.type === 'structural').length;
 
     return (
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm h-full flex flex-col">
+        <div className="bg-white border border-gray-200 h-full flex flex-col p-6">
             {/* Header */}
-            <div className="text-center mb-6">
-                <div className="w-14 h-14 mx-auto mb-3 bg-gradient-to-br from-[#6b7aa1] to-[#8b9ac1] rounded-2xl flex items-center justify-center shadow-lg">
-                    <Sparkles className="w-7 h-7 text-white" />
-                </div>
-                <h2 className="text-lg font-semibold text-gray-800">AI Layout Designer</h2>
-                <p className="text-sm text-gray-500 mt-1">Generate optimized room arrangements</p>
+            <div className="text-center mb-8">
+                <h2 className="text-xl font-bold text-black tracking-tight mb-2">AI Layout Designer</h2>
+                <div className="h-px w-12 bg-black mx-auto"></div>
+                <p className="text-sm text-gray-500 mt-3">Generate optimized room arrangements</p>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 gap-3 mb-6">
-                <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                    <div className="text-2xl font-bold text-emerald-600">{movableCount}</div>
-                    <div className="text-xs text-emerald-600/70">Movable</div>
+            <div className="grid grid-cols-2 gap-4 mb-8">
+                <div className="border border-gray-100 p-4 text-center">
+                    <div className="text-3xl font-light text-black">{movableCount}</div>
+                    <div className="text-xs text-gray-400 uppercase tracking-widest mt-1">Movable</div>
                 </div>
-                <div className="bg-slate-50 rounded-xl p-3 text-center">
-                    <div className="text-2xl font-bold text-slate-600">{structuralCount}</div>
-                    <div className="text-xs text-slate-600/70">Fixed</div>
+                <div className="border border-gray-100 p-4 text-center">
+                    <div className="text-3xl font-light text-black">{structuralCount}</div>
+                    <div className="text-xs text-gray-400 uppercase tracking-widest mt-1">Fixed</div>
                 </div>
             </div>
 
             {/* Layout Styles Preview */}
-            <div className="mb-6">
-                <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
-                    AI will generate 3 styles
+            <div className="mb-8">
+                <div className="text-xs font-semibold text-black uppercase tracking-widest mb-4">
+                    Styles
                 </div>
-                <div className="space-y-2">
-                    <div className="flex items-center gap-3 p-2.5 bg-blue-50 rounded-lg">
-                        <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <Zap className="w-4 h-4 text-blue-600" />
+                <div className="space-y-3">
+                    <div className="flex items-center gap-4 p-3 border border-gray-100 hover:border-black transition-colors group cursor-default">
+                        <div className="w-8 h-8 flex items-center justify-center bg-gray-50 group-hover:bg-black transition-colors">
+                            <Zap className="w-4 h-4 text-gray-400 group-hover:text-white" />
                         </div>
                         <div>
-                            <div className="text-sm font-medium text-blue-800">Productivity Focus</div>
-                            <div className="text-xs text-blue-600/70">Desk near window, work zones</div>
+                            <div className="text-sm font-medium text-black">Productivity Focus</div>
+                            <div className="text-xs text-gray-400">Workstation optimized</div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3 p-2.5 bg-rose-50 rounded-lg">
-                        <div className="w-8 h-8 bg-rose-100 rounded-lg flex items-center justify-center">
-                            <Layout className="w-4 h-4 text-rose-600" />
+                    <div className="flex items-center gap-4 p-3 border border-gray-100 hover:border-black transition-colors group cursor-default">
+                        <div className="w-8 h-8 flex items-center justify-center bg-gray-50 group-hover:bg-black transition-colors">
+                            <Layout className="w-4 h-4 text-gray-400 group-hover:text-white" />
                         </div>
                         <div>
-                            <div className="text-sm font-medium text-rose-800">Cozy Retreat</div>
-                            <div className="text-xs text-rose-600/70">Bed-centered, intimate spaces</div>
+                            <div className="text-sm font-medium text-black">Cozy Retreat</div>
+                            <div className="text-xs text-gray-400">Relaxation & Comfort</div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3 p-2.5 bg-violet-50 rounded-lg">
-                        <div className="w-8 h-8 bg-violet-100 rounded-lg flex items-center justify-center">
-                            <Palette className="w-4 h-4 text-violet-600" />
+                    <div className="flex items-center gap-4 p-3 border border-gray-100 hover:border-black transition-colors group cursor-default">
+                        <div className="w-8 h-8 flex items-center justify-center bg-gray-50 group-hover:bg-black transition-colors">
+                            <Palette className="w-4 h-4 text-gray-400 group-hover:text-white" />
                         </div>
                         <div>
-                            <div className="text-sm font-medium text-violet-800">Space Optimized</div>
-                            <div className="text-xs text-violet-600/70">Perimeter layout, spacious</div>
+                            <div className="text-sm font-medium text-black">Space Optimized</div>
+                            <div className="text-xs text-gray-400">Maximize floor space</div>
                         </div>
                     </div>
                 </div>
@@ -89,20 +87,18 @@ export function OptimizePanel({
             <button
                 onClick={onGenerate}
                 disabled={isGenerating || movableCount === 0}
-                className="w-full py-3.5 px-4 bg-gradient-to-r from-[#6b7aa1] to-[#8b9ac1] text-white rounded-xl font-semibold
-          hover:from-[#5a6890] hover:to-[#7a89b0] transition-all shadow-lg
-          disabled:opacity-50 disabled:cursor-not-allowed
+                className="w-full py-4 text-sm font-medium tracking-wide bg-black text-white 
+          hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed
           flex items-center justify-center gap-2"
             >
                 {isGenerating ? (
                     <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Generating...
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        GENERATING...
                     </>
                 ) : (
                     <>
-                        <Sparkles className="w-5 h-5" />
-                        Generate Layouts
+                        GENERATE LAYOUTS
                     </>
                 )}
             </button>
@@ -111,26 +107,26 @@ export function OptimizePanel({
             <button
                 onClick={onReanalyze}
                 disabled={isAnalyzing}
-                className="w-full mt-3 py-2 px-4 text-gray-500 hover:text-gray-700 hover:bg-gray-50 
-          rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
+                className="w-full mt-3 py-3 text-xs font-medium tracking-wide text-gray-400 hover:text-black 
+          transition-colors flex items-center justify-center gap-2"
             >
                 {isAnalyzing ? (
                     <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Re-analyzing...
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        RE-ANALYZING...
                     </>
                 ) : (
                     <>
-                        <RefreshCw className="w-4 h-4" />
-                        Re-analyze Room
+                        <RefreshCw className="w-3 h-3" />
+                        RE-ANALYZE ROOM
                     </>
                 )}
             </button>
 
             {/* Info */}
             {movableCount === 0 && (
-                <p className="text-xs text-amber-600 text-center mt-3 bg-amber-50 rounded-lg p-2">
-                    No movable objects detected. All items are structural.
+                <p className="text-xs text-gray-400 text-center mt-4">
+                    No movable objects. Add furniture to generate layouts.
                 </p>
             )}
         </div>

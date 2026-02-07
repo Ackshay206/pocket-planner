@@ -1,0 +1,26 @@
+{
+  "plan": {
+    "description": "This space-optimized layout places all furniture against the perimeter walls to maximize the central open floor space. This creates clear, wide pathways and distinct functional zones for sleeping, living, and dining, making the studio feel larger and more organized. The arrangement ensures every piece has a dedicated spot without cluttering the main traffic areas.",
+    "furniture_placement": {
+      "chair_1": "Placed at the dining table (table_1) against the left (west) wall.",
+      "chair_2": "Placed at the dining table (table_1) against the left (west) wall, opposite chair_1.",
+      "bed_1": "Centered against the right (east) wall.",
+      "nightstand_1": "Positioned against the right (east) wall, on the top side of bed_1.",
+      "nightstand_2": "Positioned against the right (east) wall, on the bottom side of bed_1.",
+      "table_1": "Set against the left (west) wall, between the kitchenette area and the sofa.",
+      "sofa_1": "Placed against the left (west) wall, south of the dining table.",
+      "artwork_1": "Mounted on the left (west) wall, centered above sofa_1.",
+      "plant_1": "Placed on top of nightstand_1.",
+      "lamp_1": "Placed on top of nightstand_2.",
+      "artwork_2": "Mounted on the right (east) wall, above nightstand_2.",
+      "rug_1": "Positioned on the floor against the bottom (south) wall, in front of the left window.",
+      "rug_2": "Positioned on the floor against the bottom (south) wall, in front of the right window."
+    },
+    "door_clearance": "The area directly in front of and around the door is kept completely free of furniture, creating an unobstructed entryway and a clear path into the main living space.",
+    "zone_arrangement": {
+      "work_zone": "The work/dining zone is located along the upper portion of the left (west) wall, utilizing the table and chairs adjacent to the kitchenette.",
+      "sleep_zone": "The sleep zone is consolidated along the entire right (east) wall, featuring the bed flanked by two nightstands.",
+      "living_zone": "The living zone is situated along the lower portion of the left (west) wall, anchored by the sofa. The entire central floor area is left open for a spacious feel."
+    }
+  }
+}

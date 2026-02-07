@@ -1,0 +1,26 @@
+{
+  "plan": {
+    "description": "This layout establishes a clear hierarchy by making the work area the focal point. The table is positioned directly opposite the entrance against the windowed wall, creating a commanding and inspiring workspace. The bed is intentionally relocated to the furthest, most secluded corner to minimize its presence and promote a work-first mindset, while the sofa is placed to the side to maintain a clear, direct path to the desk.",
+    "furniture_placement": {
+      "table_1": "Centered on the south wall, pushed flush against it, positioned between window_2 and window_3.",
+      "chair_1": "Placed at table_1 on the left side, with its back facing the center of the room.",
+      "chair_2": "Placed at table_1 on the right side, with its back facing the center of the room.",
+      "bed_1": "In the north-east corner of the room, with the headboard against the north wall, adjacent to the bathroom.",
+      "nightstand_1": "Positioned to the left of bed_1, between the bed and the bathroom wall.",
+      "nightstand_2": "Positioned to the right of bed_1, between the bed and the east wall.",
+      "sofa_1": "Pushed flush against the west wall, south of the kitchenette area.",
+      "artwork_1": "Mounted on the west wall, centered above sofa_1.",
+      "artwork_2": "Mounted on the east wall, south of the sleep zone.",
+      "plant_1": "Placed in the south-east corner of the room, next to table_1.",
+      "lamp_1": "Placed on nightstand_2.",
+      "rug_1": "On the floor on the left side of the work zone, in front of window_2 and partially under table_1.",
+      "rug_2": "On the floor on the right side of the work zone, in front of window_3 and partially under table_1."
+    },
+    "door_clearance": "The central corridor from the door on the north wall to the table on the south wall is kept completely clear, ensuring an unobstructed path and line of sight to the work area. No furniture is placed in the door's swing path.",
+    "zone_arrangement": {
+      "work_zone": "The work zone is the primary focus, located at the south end of the room against the windowed wall. It is the first area visible upon entering the room.",
+      "sleep_zone": "The sleep zone is discreetly tucked into the north-east corner, the furthest point from both the door and the work zone, to separate rest from work.",
+      "living_zone": "The living zone is situated along the west wall, creating a distinct area for relaxation that does not impede the main circulation path to the work zone."
+    }
+  }
+}

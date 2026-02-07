@@ -1,0 +1,40 @@
+{
+  "style_key": "space_optimized",
+  "full_prompt": "You are an expert interior designer creating a \"Space Optimized\" layout.\n\n## ROOM INFO\n- Room dimensions: ~15 x 25 feet\n- Door: on the north (top) wall at ~46% along that wall\n- Window: on the interior wall at ~50% along that wall\n\n## STYLE: Space Optimized\nPerimeter layout. ALL furniture hugs the walls. The center floor is EMPTY.\n\n## SPECIFIC CONSTRAINTS (MUST FOLLOW):\n- CRITICAL: ALL furniture (Bed, Sofa, Table, everything) MUST be pushed flat against walls. Nothing floating.\n- CRITICAL: The physical center of the room must be COMPLETELY EMPTY floor space. No furniture, no rugs in the middle.\n- Sofa along a long wall, never floating.\n- Table/Desk against a wall, preferably near window if available.\n- Wide clear walking path from door to all zones.\n- NO furniture within 3 feet of the door.\n\n## FURNITURE TO ARRANGE (by zone)\n{\n  \"work_zone\": [\n    {\n      \"id\": \"chair_1\",\n      \"label\": \"chair\"\n    },\n    {\n      \"id\": \"chair_2\",\n      \"label\": \"chair\"\n    }\n  ],\n  \"sleep_zone\": [\n    {\n      \"id\": \"bed_1\",\n      \"label\": \"bed\"\n    },\n    {\n      \"id\": \"nightstand_1\",\n      \"label\": \"nightstand\"\n    },\n    {\n      \"id\": \"nightstand_2\",\n      \"label\": \"nightstand\"\n    }\n  ],\n  \"living_zone\": [\n    {\n      \"id\": \"table_1\",\n      \"label\": \"table\"\n    },\n    {\n      \"id\": \"sofa_1\",\n      \"label\": \"sofa\"\n    },\n    {\n      \"id\": \"artwork_1\",\n      \"label\": \"artwork\"\n    },\n    {\n      \"id\": \"plant_1\",\n      \"label\": \"plant\"\n    },\n    {\n      \"id\": \"lamp_1\",\n      \"label\": \"lamp\"\n    },\n    {\n      \"id\": \"artwork_2\",\n      \"label\": \"artwork\"\n    },\n    {\n      \"id\": \"rug_1\",\n      \"label\": \"rug\"\n    },\n    {\n      \"id\": \"rug_2\",\n      \"label\": \"rug\"\n    }\n  ]\n}\n\n## STRUCTURAL ELEMENTS (DO NOT MOVE)\n[\n  {\n    \"id\": \"refrigerator_1\",\n    \"label\": \"refrigerator\",\n    \"full_label\": \"refrigerator\",\n    \"bbox\": [\n      150,\n      91,\n      84,\n      89\n    ]\n  },\n  {\n    \"id\": \"cabinet_1\",\n    \"label\": \"cabinet\",\n    \"full_label\": \"cabinet\",\n    \"bbox\": [\n      180,\n      91,\n      55,\n      52\n    ]\n  },\n  {\n    \"id\": \"kitchen_counter_1\",\n    \"label\": \"kitchen counter\",\n    \"full_label\": \"kitchen_counter\",\n    \"bbox\": [\n      150,\n      180,\n      84,\n      99\n    ]\n  },\n  {\n    \"id\": \"sink_1\",\n    \"label\": \"sink\",\n    \"full_label\": \"sink\",\n    \"bbox\": [\n      180,\n      184,\n      40,\n      29\n    ]\n  },\n  {\n    \"id\": \"stovetop_1\",\n    \"label\": \"stovetop\",\n    \"full_label\": \"stovetop\",\n    \"bbox\": [\n      180,\n      228,\n      40,\n      44\n    ]\n  },\n  {\n    \"id\": \"door_1\",\n    \"label\": \"door\",\n    \"full_label\": \"door\",\n    \"bbox\": [\n      261,\n      91,\n      69,\n      52\n    ]\n  },\n  {\n    \"id\": \"sink_2\",\n    \"label\": \"sink\",\n    \"full_label\": \"sink\",\n    \"bbox\": [\n      364,\n      92,\n      47,\n      33\n    ]\n  },\n  {\n    \"id\": \"sink_3\",\n    \"label\": \"sink\",\n    \"full_label\": \"sink\",\n    \"bbox\": [\n      364,\n      128,\n      47,\n      33\n    ]\n  },\n  {\n    \"id\": \"toilet_1\",\n    \"label\": \"toilet\",\n    \"full_label\": \"toilet\",\n    \"bbox\": [\n      426,\n      114,\n      44,\n      51\n    ]\n  },\n  {\n    \"id\": \"shower_1\",\n    \"label\": \"shower\",\n    \"full_label\": \"shower\",\n    \"bbox\": [\n      485,\n      92,\n      84,\n      92\n    ]\n  },\n  {\n    \"id\": \"shelf_1\",\n    \"label\": \"shelf\",\n    \"full_label\": \"shelf\",\n    \"bbox\": [\n      345,\n      198,\n      228,\n      80\n    ]\n  },\n  {\n    \"id\": \"window_1\",\n    \"label\": \"window\",\n    \"full_label\": \"window\",\n    \"bbox\": [\n      150,\n      305,\n      7,\n      106\n    ]\n  },\n  {\n    \"id\": \"window_2\",\n    \"label\": \"window\",\n    \"full_label\": \"window\",\n    \"bbox\": [\n      202,\n      640,\n      136,\n      7\n    ]\n  },\n  {\n    \"id\": \"window_3\",\n    \"label\": \"window\",\n    \"full_label\": \"window\",\n    \"bbox\": [\n      463,\n      640,\n      132,\n      7\n    ]\n  }\n]\n\n\u26a0\ufe0f EXCLUSION ZONES \u2014 furniture MUST NOT overlap these fixed fixtures:\n  - refrigerator (refrigerator_1): fixed at top (north)-left (west). NO furniture here.\n  - kitchen counter (kitchen_counter_1): fixed at top (north)-left (west). NO furniture here.\n  - shower (shower_1): fixed at top (north)-right (east). NO furniture here.\n\n## YOUR TASK\nCreate a layout plan using RELATIVE/SEMANTIC positions only.\nDescribe WHERE each piece goes relative to walls, other furniture, and structural elements.\n\n## CRITICAL RULES\n1. DOOR CLEARANCE: Nothing may block the door.\n2. Include ALL furniture \u2014 do not skip any.\n3. Follow the SPECIFIC CONSTRAINTS exactly \u2014 they are non-negotiable.\n4. Do not add any new furniture.\n5. Use the ACTUAL furniture labels from the list above (e.g. \"table_1\" not \"desk\").\n6. Do NOT place any movable furniture where it would overlap a fixed fixture (toilet, shower, sink, stove, refrigerator).\n\n## OUTPUT FORMAT (JSON)\n{\n  \"description\": \"2-3 sentences explaining the design rationale\",\n  \"furniture_placement\": {\n    \"<furniture_id>\": \"<relative position description>\",\n    ...\n  },\n  \"door_clearance\": \"how door area is kept clear\",\n  \"zone_arrangement\": {\n    \"work_zone\": \"location description\",\n    \"sleep_zone\": \"location description\",\n    \"living_zone\": \"location description\"\n  }\n}",
+  "door_info": {
+    "id": "door_1",
+    "type": "door",
+    "wall": "north (top)",
+    "bbox": [
+      261,
+      91,
+      69,
+      52
+    ],
+    "x": 261,
+    "y": 91,
+    "width": 69,
+    "height": 52,
+    "center_x": 295.5,
+    "center_y": 117.0,
+    "position_on_wall_percent": 45.8
+  },
+  "window_info": {
+    "id": "window_1",
+    "type": "window",
+    "wall": "interior",
+    "bbox": [
+      150,
+      305,
+      7,
+      106
+    ],
+    "x": 150,
+    "y": 305,
+    "width": 7,
+    "height": 106,
+    "center_x": 153.5,
+    "center_y": 358.0,
+    "position_on_wall_percent": 50.0
+  }
+}

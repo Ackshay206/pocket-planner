@@ -1,0 +1,27 @@
+{
+  "plan": {
+    "description": "This layout establishes a clear work-first environment by positioning the table as the hero piece, immediately visible upon entry against the far windowed wall. The bed is relocated to a side wall, de-emphasizing it and keeping it out of the primary sightline from the door. This creates a direct, motivating path to the workspace, with distinct zones for sleep and relaxation on the periphery.",
+    "furniture_placement": {
+      "table_1": "Centered on and flush against the south wall, positioned between the two windows (window_2 and window_3).",
+      "chair_1": "Placed at table_1 on the west side, with its back to the center of the room.",
+      "chair_2": "Placed at table_1 on the east side, with its back to the center of the room.",
+      "bed_1": "Positioned against the west wall, with the headboard flush against the wall, in the area south of the kitchen fixtures.",
+      "nightstand_1": "Placed against the west wall, on the north side of bed_1.",
+      "nightstand_2": "Placed against the west wall, on the south side of bed_1.",
+      "sofa_1": "Positioned flush against the east wall, in the area south of the bathroom.",
+      "artwork_1": "Mounted on the west wall, centered above bed_1.",
+      "artwork_2": "Mounted on the east wall, centered above sofa_1.",
+      "plant_1": "Placed in the south-east corner of the room, to the right of sofa_1.",
+      "rug_1": "Placed on the floor in front of the west-side window on the south wall (window_2), partially under table_1.",
+      "rug_2": "Placed on the floor in front of the east-side window on the south wall (window_3), partially under table_1.",
+      "lamp_1": "Placed on top of nightstand_1.",
+      "lamp_2": "Placed on top of nightstand_2."
+    },
+    "door_clearance": "The central corridor of the room is kept entirely open, providing a direct and unobstructed path from the door on the north wall to the table on the south wall.",
+    "zone_arrangement": {
+      "work_zone": "The work zone is the primary focus, occupying the full width of the south wall, making it the destination point from the entrance.",
+      "sleep_zone": "The sleep zone is located along the west wall, tucked away from the main entryway and separate from the work zone.",
+      "living_zone": "The living zone is situated along the east wall, creating a separate space for relaxation that does not impede the flow to the work area."
+    }
+  }
+}

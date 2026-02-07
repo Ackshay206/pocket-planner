@@ -64,7 +64,9 @@ async def analyze_room(request: AnalyzeRequest) -> AnalyzeResponse:
             objects=vision_output.objects,
             wall_bounds=vision_output.wall_bounds,
             detected_issues=detected_issues,
-            message=f"Detected {len(vision_output.objects)} objects. {len(detected_issues)} issue(s) found."
+            message=f"Detected {len(vision_output.objects)} objects. {len(detected_issues)} issue(s) found.",
+            image_width=vision_output.image_width,
+            image_height=vision_output.image_height,
         )
         
     except ValueError as e:

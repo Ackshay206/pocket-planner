@@ -54,11 +54,11 @@ export interface OptimizeRequest {
 
 // Layout variation from AI Designer
 export interface LayoutVariation {
-  name: string; // "Flow Optimized", "Zoned Living", "Creative"
+  name: string; // "Productivity Focus", "Cozy Retreat", "Space Optimized"
   description: string; // Design rationale
   layout: RoomObject[];
+  layout_plan?: Record<string, any> | null; // Semantic placement plan from Gemini
   thumbnail_base64?: string | null;
-  score?: number | null; // 0-100
 }
 
 export interface OptimizeResponse {
@@ -66,7 +66,6 @@ export interface OptimizeResponse {
   message: string;
   new_layout?: RoomObject[] | null;
   explanation?: string | null;
-  layout_score?: number | null;
   iterations?: number | null;
   constraint_violations: ConstraintViolation[];
   improvement: number;
@@ -131,6 +130,8 @@ export interface PerspectiveRequest {
   room_dimensions: RoomDimensions;
   style?: string;
   view_angle?: string;
+  image_base64?: string;
+  layout_plan?: Record<string, any> | null;
 }
 
 export interface PerspectiveResponse {

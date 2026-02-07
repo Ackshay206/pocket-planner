@@ -1,0 +1,27 @@
+{
+  "plan": {
+    "description": "This layout creates a 'Cozy Retreat' by establishing a unified lounging and sleeping block as the central feature. The bed is positioned as the focal point upon entry, and the sofa is placed at its foot to form an intimate, multi-functional relaxation zone. The work area is intentionally tucked into a corner to keep the main space dedicated to comfort and rest.",
+    "furniture_placement": {
+      "bed_1": "Centered against the south wall, opposite the main door.",
+      "nightstand_1": "Positioned to the left of the head of bed_1, against the south wall.",
+      "nightstand_2": "Positioned to the right of the head of bed_1, against the south wall.",
+      "sofa_1": "Placed at the foot of bed_1, facing towards the bed to create a single, unified lounging block.",
+      "table_1": "Tucked into the southwest corner of the room, out of the direct sightline from the entrance.",
+      "chair_1": "Placed at table_1.",
+      "chair_2": "Placed at table_1.",
+      "artwork_1": "Mounted on the west wall, above table_1.",
+      "artwork_2": "Mounted on the east wall, in the open space between the bed and the bathroom wall.",
+      "plant_1": "Placed in the northeast corner of the main room, near the bathroom wall.",
+      "rug_1": "Centered underneath the unified bed and sofa block to define the relaxation zone.",
+      "rug_2": "Placed under table_1 to define the work zone.",
+      "lamp_1": "Placed on top of nightstand_1.",
+      "lamp_2": "Placed on top of nightstand_2."
+    },
+    "door_clearance": "The main walkway from the door into the room is kept completely clear. All furniture is arranged in the southern and western portions of the room, ensuring an unobstructed path from the entrance.",
+    "zone_arrangement": {
+      "work_zone": "Contained in the southwest corner of the room, keeping it functionally separate from the primary relaxation area.",
+      "sleep_zone": "Located along the south wall, making it the central focal point of the room as intended.",
+      "living_zone": "Integrated directly with the sleep zone in the center of the room, forming a cohesive block for relaxation. Decorative elements are placed along the perimeter walls to complement this central feature."
+    }
+  }
+}
