@@ -201,8 +201,8 @@ CRITICAL RULES:
 
 3. CONTENT FIDELITY:
    - Include EVERY piece of furniture from the plan.
-   - Place them EXACTLY as shown relative to the walls.
-   - Do NOT move the kitchen or bathroom fixtures.
+   - Place them and orient themEXACTLY as shown in the layout relative to the walls.
+   - Do NOT move any furniture orthe kitchen or bathroom fixtures.
    - Style: {style}.
    - Lighting: {lighting}.
 
