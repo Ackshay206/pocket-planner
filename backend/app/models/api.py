@@ -22,7 +22,6 @@ class AnalyzeResponse(BaseModel):
     room_dimensions: RoomDimensions
     objects: List[RoomObject]
     wall_bounds: Optional[List[int]] = Field(None, description="Interior wall boundaries [x, y, width, height]")
-    detected_issues: List[str] = Field(default_factory=list)
     message: str = "Analysis complete"
     # NEW: pixel dimensions for designer_node spatial calculations
     image_width: Optional[int] = Field(None, description="Source image width in pixels")

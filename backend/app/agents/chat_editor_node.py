@@ -65,14 +65,15 @@ class ChatEditor:
         command: str,
         current_layout: List[RoomObject],
         room_dims: RoomDimensions,
-        current_image_base64: Optional[str] = None
+        current_image_base64: Optional[str] = None,
+        layout_plan: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Process a natural language editing command.
         TRACED: Full chain with command parsing and edit application.
         """
         # First, classify the edit type (traced)
-        edit_type, parsed_command = await self._parse_command(command, current_layout)
+        edit_type, parsed_command = await self._parse_command(command, current_layout, layout_plan)
         
         if edit_type == "layout":
             # Structural edit - modify layout positions
@@ -109,7 +110,7 @@ class ChatEditor:
             # Furniture replacement - remove old, add new at same position
             if current_image_base64:
                 updated_image, explanation = await self._apply_replace_edit(
-                    parsed_command, current_image_base64
+                    parsed_command, current_image_base64, layout_plan
                 )
                 return {
                     "edit_type": "cosmetic",
@@ -157,7 +158,8 @@ class ChatEditor:
     async def _parse_command(
         self, 
         command: str, 
-        current_layout: List[RoomObject]
+        current_layout: List[RoomObject],
+        layout_plan: Optional[Dict[str, Any]] = None
     ) -> Tuple[str, Dict[str, Any]]:
         """
         Parse natural language command into structured edit instruction.
@@ -165,10 +167,21 @@ class ChatEditor:
         """
         furniture_list = [{"id": obj.id, "label": obj.label} for obj in current_layout]
         
+        # Format design context from layout_plan if available
+        design_context = ""
+        if layout_plan:
+            design_context = f"""
+DESIGN CONTEXT (The current layout follows this plan):
+- Concept: {layout_plan.get('concept_name', 'Custom Layout')}
+- Description: {layout_plan.get('description', 'User generated layout')}
+- Intent (Furniture Placement): {json.dumps(layout_plan.get('furniture_placement', {}), indent=2)}
+"""
+
         prompt = f"""You are an interior design assistant parsing user edit commands.
 
 CURRENT FURNITURE IN ROOM:
 {json.dumps(furniture_list, indent=2)}
+{design_context}
 
 USER COMMAND: "{command}"
 
@@ -431,7 +444,8 @@ Generate the edited room photograph with the {removed_label} removed."""
     async def _apply_replace_edit(
         self,
         parsed_command: Dict[str, Any],
-        current_image_base64: str
+        current_image_base64: str,
+        layout_plan: Optional[Dict[str, Any]] = None
     ) -> Tuple[str, str]:
         """
         Replace one piece of furniture with another at the EXACT same position.
@@ -449,9 +463,16 @@ Generate the edited room photograph with the {removed_label} removed."""
         target_id = parsed_command.get("target_object_id", "")
         description = parsed_command.get("natural_description", f"Replace {old_furniture} with {new_furniture}")
 
+        location_context = ""
+        if layout_plan and "furniture_placement" in layout_plan and target_id:
+             placement = layout_plan["furniture_placement"].get(target_id)
+             if placement:
+                 location_context = f"LOCATION CONTEXT: The {old_furniture} is currently located {placement}."
+
         prompt = f"""Edit this interior room photograph. Replace one piece of furniture with another.
 
 TASK: Replace the {old_furniture} with a {new_furniture}.
+{location_context}
 
 ╔══════════════════════════════════════════════════════════════╗
   ⛔ CRITICAL POSITION RULES — MUST FOLLOW EXACTLY

@@ -1,5 +1,5 @@
 """
-Pocket Planner API v2.0
+Dwell.ai API v2.0
 
 FastAPI application for the Generative 3D Interior Design Agent.
 
@@ -37,7 +37,7 @@ app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description="""
-    **Pocket Planner API v2.0** - AI-Powered Generative 3D Interior Design Agent.
+    **Dwell.ai API v2.0** - AI-Powered Generative 3D Interior Design Agent.
     
     ## Features
     - **Analyze**: Extract 3D floor plan understanding from room photos
@@ -121,7 +121,7 @@ async def invalid_image_error_handler(request: Request, exc: InvalidImageError):
 
 @app.exception_handler(PocketPlannerError)
 async def pocket_planner_error_handler(request: Request, exc: PocketPlannerError):
-    """Handle generic Pocket Planner errors."""
+    """Handle generic Dwell.ai errors."""
     return JSONResponse(
         status_code=500,
         content={"detail": exc.message, "error_code": exc.error_code}
@@ -136,7 +136,7 @@ async def root():
     return HealthResponse(
         status="ok",
         version=settings.app_version,
-        message="Pocket Planner API is running. Visit /docs for API documentation."
+        message="Dwell.ai API is running. Visit /docs for API documentation."
     )
 
 

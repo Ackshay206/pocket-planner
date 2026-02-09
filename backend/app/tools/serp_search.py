@@ -75,6 +75,15 @@ class SerpSearchTool:
                 data = response.json()
 
             shopping_results = data.get("shopping_results", [])
+            
+            # DEBUG: Inspect first item fields to find direct links
+            if shopping_results:
+                print(f"[SerpAPI Debug] First item keys: {list(shopping_results[0].keys())}")
+                print(f"[SerpAPI Debug] First item link: {shopping_results[0].get('link')}")
+                # Check for other potential link fields people might use
+                for k in ['product_link', 'offer_link', 'merchant_link', 'display_link', 'dest_url']:
+                    if k in shopping_results[0]:
+                        print(f"[SerpAPI Debug]   {k}: {shopping_results[0][k]}")
 
             products = []
             for item in shopping_results:

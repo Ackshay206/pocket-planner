@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     
     # App settings
-    app_name: str = "Pocket Planner API"
+    app_name: str = "Dwell.ai API"
     app_version: str = "2.0.0"
     debug: bool = True
     

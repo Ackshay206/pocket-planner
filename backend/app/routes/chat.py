@@ -34,6 +34,7 @@ class ChatEditRequest(BaseModel):
     current_layout: List[RoomObject]
     room_dimensions: RoomDimensions
     current_image_base64: Optional[str] = None
+    layout_plan: Optional[dict] = None
 
 
 class ChatEditResponse(BaseModel):
@@ -72,7 +73,8 @@ async def chat_edit(request: ChatEditRequest) -> ChatEditResponse:
             command=request.command,
             current_layout=request.current_layout,
             room_dims=request.room_dimensions,
-            current_image_base64=request.current_image_base64
+            current_image_base64=request.current_image_base64,
+            layout_plan=request.layout_plan
         )
         
         return ChatEditResponse(

@@ -12,7 +12,6 @@ import base64
 import logging
 
 from app.models.api import AnalyzeRequest, AnalyzeResponse
-from app.core.constraints import check_all_hard_constraints
 from app.agents.vision_node import VisionAgent, get_vision_agent
 
 # LangSmith tracing
@@ -51,20 +50,11 @@ async def analyze_room(request: AnalyzeRequest) -> AnalyzeResponse:
         vision_output = await agent.analyze_room(request.image_base64)
         
         # Check for initial issues
-        violations = check_all_hard_constraints(
-            vision_output.objects,
-            vision_output.room_dimensions.width_estimate,
-            vision_output.room_dimensions.height_estimate
-        )
-        
-        detected_issues = [v.description for v in violations]
-        
         return AnalyzeResponse(
             room_dimensions=vision_output.room_dimensions,
             objects=vision_output.objects,
             wall_bounds=vision_output.wall_bounds,
-            detected_issues=detected_issues,
-            message=f"Detected {len(vision_output.objects)} objects. {len(detected_issues)} issue(s) found.",
+            message=f"Detected {len(vision_output.objects)} objects.",
             image_width=vision_output.image_width,
             image_height=vision_output.image_height,
         )

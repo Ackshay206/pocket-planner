@@ -7,15 +7,13 @@ Agentic node that:
 3. Searches Google Shopping (via SerpAPI) for each item
 4. Returns structured product recommendations
 
-This is the most "agentic" part of the pipeline — it autonomously decides
-search queries, evaluates results, and retries with refined queries if needed.
-
 FULLY TRACED with LangSmith.
 """
 
 import json
 import base64
 import asyncio
+import traceback
 from typing import List, Dict, Any, Optional
 from google import genai
 from google.genai import types
@@ -47,12 +45,12 @@ class ShoppingAgent:
         self.client = genai.Client(api_key=settings.google_api_key)
         self.model = settings.planning_model_name
         self.search_tool = SerpSearchTool()
+        print(f"[ShoppingAgent] Initialized with model: {self.model}")
 
     @traceable(
         name="shopping_agent.find_products",
         run_type="chain",
         tags=["shopping", "agent", "pipeline"],
-        metadata={"description": "Full shopping agent pipeline"}
     )
     async def find_products(
         self,
@@ -62,44 +60,41 @@ class ShoppingAgent:
     ) -> Dict[str, Any]:
         """
         Main entry point. Analyzes room, allocates budget, searches products.
-
-        Args:
-            current_layout: List of RoomObject from the current layout.
-            total_budget: Total room budget in USD.
-            perspective_image_base64: Optional perspective render for style analysis.
-
-        Returns:
-            Dict with "items" list and "total_estimated" cost.
         """
-        # Step 1: Get only movable furniture labels
+        # Step 1: Get only movable furniture
         movable_items = [
             {"id": obj.id, "label": obj.label}
             for obj in current_layout
             if obj.type.value == "movable"
         ]
 
+        print(f"[ShoppingAgent] Movable items: {movable_items}")
+        print(f"[ShoppingAgent] Total budget: ${total_budget}")
+        print(f"[ShoppingAgent] Has perspective image: {perspective_image_base64 is not None}")
+
         if not movable_items:
             return {"items": [], "total_estimated": 0, "message": "No movable furniture found."}
 
-        # Step 2: Use Gemini to describe each item's style + allocate budget
+        # Step 2: Ask Gemini to describe items + allocate budget
         item_descriptions = await self._describe_and_allocate(
             movable_items, total_budget, perspective_image_base64
         )
 
+        print(f"[ShoppingAgent] Gemini returned {len(item_descriptions)} item descriptions:")
+        for desc in item_descriptions:
+            print(f"  - {desc.get('id')}: query=\"{desc.get('search_query')}\" budget=${desc.get('budget')}")
+
         # Step 3: Search for each item in parallel
-        search_tasks = []
-        for item in item_descriptions:
-            search_tasks.append(
-                self._search_for_item(item)
-            )
+        search_tasks = [self._search_for_item(item) for item in item_descriptions]
         search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
 
-        # Step 4: Assemble final results
+        # Step 4: Assemble results
         items = []
         total_estimated = 0.0
         for i, result in enumerate(search_results):
             desc = item_descriptions[i]
             if isinstance(result, Exception):
+                print(f"[ShoppingAgent] Search FAILED for {desc['id']}: {result}")
                 items.append({
                     "furniture_id": desc["id"],
                     "furniture_label": desc["label"],
@@ -130,7 +125,6 @@ class ShoppingAgent:
         name="gemini_describe_and_allocate",
         run_type="llm",
         tags=["gemini", "shopping", "description", "budget"],
-        metadata={"model_type": "gemini-pro", "task": "style_description_and_budget"}
     )
     async def _describe_and_allocate(
         self,
@@ -139,83 +133,76 @@ class ShoppingAgent:
         image_base64: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Use Gemini to:
-        1. Convert generic furniture labels into specific product search queries
-        2. Allocate the total budget across items proportionally by size/cost
+        Use Gemini to convert generic labels to specific product queries
+        and allocate budget proportionally.
 
-        Returns list of dicts with id, label, search_query, budget.
+        No fallback — raises on failure so we can debug properly.
         """
         item_list_str = json.dumps(movable_items, indent=2)
         num_items = len(movable_items)
 
-        prompt = f"""You are a furniture shopping assistant. A user has designed a room and wants to buy real furniture matching their design.
+        prompt = f"""You are a furniture shopping assistant. Convert generic furniture labels into specific Google Shopping search queries and allocate a budget.
 
 TOTAL BUDGET: ${total_budget:.2f}
-NUMBER OF ITEMS: {num_items}
 
-FURNITURE ITEMS (these are generic labels from floor plan detection — you must convert them to specific product names):
+FURNITURE ITEMS (from plan):
 {item_list_str}
 
-YOUR TASKS:
+TASK 1 — Analyze the attached perspective image:
+Detect ANY additional furniture or decor items visible in the image that are NOT in the "FURNITURE ITEMS" list above (e.g., rugs, plants, lamps, artwork, pillows).
+For each new item found, create a new entry with a unique ID (e.g., "detected_plant_1").
 
-TASK 1 — CONVERT GENERIC LABELS TO SPECIFIC PRODUCT SEARCH QUERIES:
-Each label above is generic (e.g. "bed", "desk", "nightstand"). Convert each into a specific, realistic Google Shopping search query that describes the actual product type, style, material, and size. Examples:
-- "bed" → "queen size walnut wood platform bed frame"
-- "desk" → "48 inch modern white writing desk with drawers"  
-- "nightstand" → "mid-century 2-drawer bedside table walnut"
-- "sofa" → "3-seater gray linen modern sofa"
-- "lamp" → "brass adjustable desk lamp"
-- "rug" → "5x7 ft neutral wool area rug"
-- "wardrobe" → "2-door oak wardrobe closet 72 inch"
+TASK 2 — Write a Google Shopping search query for each item (original + detected):
+Convert the generic label to a specific product name with style, material, color, and size based on the image style.
+Examples of good conversions:
+- "bed" → "queen size walnut platform bed frame"
+- "desk" → "48 inch white oak writing desk"
+- "nightstand" → "2-drawer walnut bedside table"
+- "sofa" → "3-seater gray linen sofa"
+- "lamp" → "brass adjustable table lamp"
+- "rug" → "5x7 neutral wool area rug"
+- "wardrobe" → "2-door oak wardrobe 72 inch"
 - "chair" → "ergonomic mesh office chair"
-Keep search queries concise: 5-10 words, no brand names.
+- "dresser" → "6-drawer walnut dresser"
+- "coffee_table" → "round walnut coffee table"
+- "detected_plant_1" → "artificial fiddle leaf fig tree 6ft"
 
-TASK 2 — ALLOCATE THE BUDGET (${total_budget:.2f}) PROPORTIONALLY:
-Larger, more expensive furniture gets a BIGGER share. Smaller items get LESS.
-Typical real-world price ratios:
-- Bed/Sofa: 25-35% of budget each
-- Desk/Wardrobe/Dresser: 15-20% each
-- Dining table: 10-15%
-- Chair/Nightstand: 5-10% each
-- Lamp/Rug/Plant: 3-5% each
+TASK 3 — Allocate ${total_budget:.2f} across ALL items (original + detected) proportionally:
+- Prioritize key furniture (Bed, Sofa, Desk) (~50% of budget divided equally)
+- Secondary furniture (Tables, Chairs, Dressers) (~40% of budget )
+- Decor/Accessories (Plants, Rugs, Lamps) (~20% of budget)
 
-The budgets MUST add up to EXACTLY ${total_budget:.2f}. Not less, not more.
+Budgets MUST sum to exactly ${total_budget:.2f}.
 
-For example, with a $2000 budget and items [bed, desk, nightstand, lamp]:
-- bed: $900 (45%)
-- desk: $550 (27.5%)
-- nightstand: $350 (17.5%)
-- lamp: $200 (10%)
-Total: $2000 ✓
-
-Return a JSON array with exactly {num_items} objects:
+Return ONLY a JSON array with ALL objects (original items + detected items):
 [
-  {{
-    "id": "furniture_id_from_list_above",
-    "label": "original_label_from_list_above",
-    "search_query": "specific product search query",
-    "budget": 450.00
-  }}
+  {{"id": "bed_1", "label": "bed", "search_query": "queen size walnut platform bed frame", "budget": 500.00}},
+  {{"id": "detected_plant_1", "label": "plant", "search_query": "artificial fiddle leaf fig tree 6ft", "budget": 80.00, "is_new": true}}
 ]
 
 RULES:
-- Every item from the furniture list MUST appear in the output.
-- "id" and "label" must match EXACTLY from the input list.
-- Budgets must be reasonable dollar amounts (not $91 for everything).
-- Budgets MUST sum to EXACTLY ${total_budget:.2f}.
-- Return ONLY the JSON array."""
+- Every original item from the input list MUST appear exactly once.
+- "id" and "label" of original items must match EXACTLY.
+- For new detected items, use IDs starting with "detected_".
+- Budgets MUST sum to exactly ${total_budget:.2f}.
+- Return ONLY the JSON array, nothing else."""
 
-        contents = [prompt]
-
-        # If we have a perspective image, include it for style context
+        # Build contents
+        contents = []
         if image_base64:
             clean_b64 = image_base64.split(",")[1] if "," in image_base64 else image_base64
             try:
                 img_data = base64.b64decode(clean_b64)
-                contents.insert(0, types.Part.from_bytes(data=img_data, mime_type="image/png"))
-            except Exception:
-                pass  # Continue without image if decode fails
+                contents.append(types.Part.from_bytes(data=img_data, mime_type="image/png"))
+                print(f"[ShoppingAgent] Attached perspective image ({len(img_data)} bytes)")
+            except Exception as e:
+                print(f"[ShoppingAgent] WARNING: Failed to decode image: {e}")
+        contents.append(prompt)
 
+        print(f"[ShoppingAgent] Calling Gemini model={self.model} with {len(contents)} content parts")
+        print(f"[ShoppingAgent] Prompt length: {len(prompt)} chars")
+
+        # Call Gemini
         try:
             response = await asyncio.to_thread(
                 self.client.models.generate_content,
@@ -226,80 +213,84 @@ RULES:
                     temperature=0.4,
                 )
             )
-            result = json.loads(response.text)
-
-            # Validate — must be a list
-            if not isinstance(result, list):
-                raise ValueError("Gemini returned non-list response")
-
-            # Validate budget sum — fix if off
-            budget_sum = sum(item.get("budget", 0) for item in result)
-            if abs(budget_sum - total_budget) > 1.0:
-                # Redistribute proportionally to match total_budget
-                if budget_sum > 0:
-                    ratio = total_budget / budget_sum
-                    for item in result:
-                        item["budget"] = round(item.get("budget", 0) * ratio, 2)
-                else:
-                    # All zeros — do equal split
-                    per_item = round(total_budget / max(len(result), 1), 2)
-                    for item in result:
-                        item["budget"] = per_item
-
-                # Fix rounding to hit exact total
-                new_sum = sum(item["budget"] for item in result)
-                diff = round(total_budget - new_sum, 2)
-                if result and diff != 0:
-                    result[0]["budget"] = round(result[0]["budget"] + diff, 2)
-
-            return result
-
         except Exception as e:
-            print(f"[ShoppingAgent] Gemini describe/allocate failed: {e}")
-            # Fallback: proportional budget split based on item type
-            return self._fallback_allocate(movable_items, total_budget)
+            print(f"[ShoppingAgent] ERROR: Gemini API call failed!")
+            print(f"[ShoppingAgent] Exception type: {type(e).__name__}")
+            print(f"[ShoppingAgent] Exception: {e}")
+            print(f"[ShoppingAgent] Traceback:\n{traceback.format_exc()}")
+            raise RuntimeError(f"Gemini API call failed: {e}") from e
 
-    def _fallback_allocate(
-        self,
-        movable_items: List[Dict[str, str]],
-        total_budget: float,
-    ) -> List[Dict[str, Any]]:
-        """
-        Fallback budget allocation when Gemini fails.
-        Uses predefined weight tiers based on furniture type.
-        """
-        # Weight tiers: large=5, medium=3, small=1
-        weight_map = {
-            "bed": 5, "sofa": 5, "couch": 5,
-            "desk": 3, "wardrobe": 3, "dresser": 3, "dining_table": 3, "table": 3,
-            "chair": 2, "nightstand": 2, "bookshelf": 2, "office_chair": 2,
-            "lamp": 1, "rug": 1, "plant": 1, "artwork": 1, "coffee_table": 2,
-        }
+        # Parse response
+        raw_text = response.text
+        print(f"[ShoppingAgent] Gemini raw response ({len(raw_text)} chars): {raw_text[:1000]}")
 
-        weights = []
-        for item in movable_items:
-            label = item["label"].lower().split("_")[0]
-            weights.append(weight_map.get(label, 2))
+        try:
+            result = json.loads(raw_text)
+        except json.JSONDecodeError as e:
+            print(f"[ShoppingAgent] ERROR: Failed to parse Gemini response as JSON!")
+            print(f"[ShoppingAgent] JSONDecodeError: {e}")
+            print(f"[ShoppingAgent] Full raw response:\n{raw_text}")
+            raise RuntimeError(f"Gemini returned invalid JSON: {e}\nRaw: {raw_text[:500]}") from e
 
-        total_weight = sum(weights) or 1
-        result = []
-        running_total = 0.0
+        # Handle Gemini wrapping the array in a dict
+        if isinstance(result, dict):
+            print(f"[ShoppingAgent] WARNING: Gemini returned dict with keys: {list(result.keys())}")
+            # Try to extract the array from common wrapper keys
+            extracted = None
+            for key in ("items", "furniture", "results", "data", "furniture_items"):
+                if key in result and isinstance(result[key], list):
+                    extracted = result[key]
+                    print(f"[ShoppingAgent] Extracted array from key '{key}' ({len(extracted)} items)")
+                    break
+            if extracted is None:
+                # If dict has the expected item fields, it might be a single item — wrap it
+                if "id" in result and "search_query" in result:
+                    extracted = [result]
+                    print(f"[ShoppingAgent] Wrapped single dict item into list")
+                else:
+                    raise RuntimeError(f"Gemini returned dict but no extractable array. Keys: {list(result.keys())}. Full response: {raw_text[:500]}")
+            result = extracted
 
-        for i, item in enumerate(movable_items):
-            if i == len(movable_items) - 1:
-                # Last item gets remainder to ensure exact sum
-                budget = round(total_budget - running_total, 2)
-            else:
-                budget = round(total_budget * weights[i] / total_weight, 2)
-                running_total += budget
+        if not isinstance(result, list):
+            raise RuntimeError(f"Expected list from Gemini, got {type(result).__name__}: {raw_text[:500]}")
 
-            label = item["label"].lower().split("_")[0]
-            result.append({
-                "id": item["id"],
-                "label": item["label"],
-                "search_query": f"modern {label} furniture",
-                "budget": budget,
-            })
+        if len(result) == 0:
+            raise RuntimeError(f"Gemini returned empty list. Raw: {raw_text[:500]}")
+
+        print(f"[ShoppingAgent] Parsed {len(result)} items from Gemini")
+
+        # Validate each item has required fields
+        for i, item in enumerate(result):
+            if not isinstance(item, dict):
+                raise RuntimeError(f"Item {i} is not a dict: {item}")
+            missing = [k for k in ("id", "label", "search_query", "budget") if k not in item]
+            if missing:
+                print(f"[ShoppingAgent] WARNING: Item {i} missing fields {missing}: {item}")
+                # Try to fill in missing fields from movable_items
+                if "id" not in item and i < len(movable_items):
+                    item["id"] = movable_items[i]["id"]
+                if "label" not in item and i < len(movable_items):
+                    item["label"] = movable_items[i]["label"]
+                if "search_query" not in item:
+                    item["search_query"] = f"{item.get('label', 'furniture')} for home"
+                if "budget" not in item:
+                    item["budget"] = round(total_budget / num_items, 2)
+
+        # Validate + fix budget sum
+        budget_sum = sum(item.get("budget", 0) for item in result)
+        print(f"[ShoppingAgent] Budget sum: ${budget_sum:.2f} (expected: ${total_budget:.2f})")
+
+        if abs(budget_sum - total_budget) > 1.0:
+            print(f"[ShoppingAgent] WARNING: Budget sum off by ${abs(budget_sum - total_budget):.2f}, rescaling")
+            if budget_sum > 0:
+                ratio = total_budget / budget_sum
+                for item in result:
+                    item["budget"] = round(item.get("budget", 0) * ratio, 2)
+            # Fix rounding on last item
+            new_sum = sum(item["budget"] for item in result)
+            diff = round(total_budget - new_sum, 2)
+            if result and diff != 0:
+                result[0]["budget"] = round(result[0]["budget"] + diff, 2)
 
         return result
 
@@ -314,25 +305,34 @@ RULES:
     ) -> List[Dict[str, Any]]:
         """
         Search Google Shopping for a single item within its allocated budget.
-        If first search returns no results, retries with a simpler query.
+        Retries with a broader query if first attempt returns no results.
         """
-        query = item.get("search_query", f"modern {item['label']} furniture")
+        query = item.get("search_query", "")
         budget = item.get("budget", 500)
+        label = item.get("label", "furniture")
 
-        # First attempt with specific query
+        if not query:
+            print(f"[ShoppingAgent] WARNING: Empty search query for {item.get('id')}, using label")
+            query = f"{label} furniture"
+
+        print(f"[ShoppingAgent] Searching: \"{query}\" (budget: ${budget})")
+
+        # First attempt with Gemini's specific query
         products = await self.search_tool.search_shopping(
             query=query,
             max_price=budget,
             num_results=3,
         )
 
-        # Agentic retry: if no results, try a simpler/broader query
+        # Agentic retry: if no results, broaden the query
         if not products:
-            simple_query = f"{item['label']} furniture"
+            broader_query = f"{label}"
+            print(f"[ShoppingAgent] No results for \"{query}\", retrying with \"{broader_query}\" (budget +50%)")
             products = await self.search_tool.search_shopping(
-                query=simple_query,
-                max_price=budget * 1.2,  # slightly relax budget on retry
+                query=broader_query,
+                max_price=budget * 1.5,
                 num_results=3,
             )
 
+        print(f"[ShoppingAgent] Found {len(products)} products for {item.get('id')}")
         return products
