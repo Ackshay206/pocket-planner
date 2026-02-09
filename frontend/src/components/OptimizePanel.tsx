@@ -89,7 +89,7 @@ export function OptimizePanel({
                 disabled={isGenerating || movableCount === 0}
                 className="w-full py-4 text-sm font-medium tracking-wide bg-black text-white 
           hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed
-          flex items-center justify-center gap-2"
+          flex items-center justify-center gap-2 rounded-full"
             >
                 {isGenerating ? (
                     <>
@@ -108,7 +108,7 @@ export function OptimizePanel({
                 onClick={onReanalyze}
                 disabled={isAnalyzing}
                 className="w-full mt-3 py-3 text-xs font-medium tracking-wide text-gray-400 hover:text-black 
-          transition-colors flex items-center justify-center gap-2"
+          transition-colors flex items-center justify-center gap-2 rounded-full"
             >
                 {isAnalyzing ? (
                     <>

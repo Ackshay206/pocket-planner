@@ -86,7 +86,7 @@ export function ImageUpload({
                     {!disabled && (
                         <button
                             onClick={clearImage}
-                            className="absolute top-4 right-4 p-2 bg-black text-white hover:bg-gray-800 transition-colors z-10"
+                            className="absolute top-4 right-4 p-2 bg-black text-white hover:bg-gray-800 transition-colors z-10 rounded-full"
                         >
                             <X className="w-4 h-4" />
                         </button>

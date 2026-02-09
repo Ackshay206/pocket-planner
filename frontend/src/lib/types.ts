@@ -40,7 +40,6 @@ export interface AnalyzeResponse {
   room_dimensions: RoomDimensions;
   objects: RoomObject[];
   wall_bounds: [number, number, number, number] | null;
-  detected_issues: string[];
   message: string;
 }
 
@@ -116,6 +115,7 @@ export interface ChatEditRequest {
   current_layout: RoomObject[];
   room_dimensions: RoomDimensions;
   current_image_base64?: string;
+  layout_plan?: Record<string, any> | null;
 }
 
 export interface ChatEditResponse {

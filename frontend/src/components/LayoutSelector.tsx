@@ -157,9 +157,9 @@ export function LayoutSelector({
             <div className="flex items-center gap-4 border-b border-gray-100 pb-6">
                 <button
                     onClick={onBack}
-                    className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                    className="p-2 bg-black text-white rounded-full hover:bg-gray-800 transition-colors"
                 >
-                    <ArrowLeft className="w-5 h-5 text-black" />
+                    <ArrowLeft className="w-5 h-5" />
                 </button>
                 <div>
                     <h2 className="text-2xl font-bold text-black tracking-tight">Choose Your Layout</h2>

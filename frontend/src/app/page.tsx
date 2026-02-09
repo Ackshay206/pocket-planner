@@ -59,7 +59,7 @@ const GENERATION_STEPS = [
   { label: 'Finalizing layouts', duration: 2000 },
 ];
 
-export default function PocketPlannerApp() {
+export default function DwellAiApp() {
   const [state, setState] = useState<AppState>(initialState);
 
   const { analyze } = useAnalyze();
@@ -240,17 +240,23 @@ export default function PocketPlannerApp() {
     if (!state.roomDimensions || !state.currentLayout.length) return;
 
     try {
+      // Filter to structural only to avoid confusing the model with stale furniture
+      const structuralLayout = state.currentLayout.filter(o => o.type === 'structural');
+      const movableLayout = state.currentLayout.filter(o => o.type === 'movable');
+
       const response = await sendCommand({
         command,
-        current_layout: state.currentLayout,
+        current_layout: structuralLayout,
         room_dimensions: state.roomDimensions,
         current_image_base64: state.perspectiveImage || undefined,
+        layout_plan: state.selectedVariation?.layout_plan || undefined,
       });
 
       if (response.updated_layout) {
+        // Merge the updated structural layout back with the preserved furniture
         setState(prev => ({
           ...prev,
-          currentLayout: response.updated_layout!,
+          currentLayout: [...response.updated_layout, ...movableLayout],
         }));
       }
 
@@ -355,7 +361,7 @@ export default function PocketPlannerApp() {
             <div className="text-center pt-4 border-t border-gray-100">
               <button
                 onClick={handleContinueToShop}
-                className="px-6 py-3 bg-black text-white font-medium hover:bg-gray-800 transition-colors inline-flex items-center gap-2"
+                className="px-6 py-3 bg-black text-white font-medium hover:bg-gray-800 transition-colors inline-flex items-center gap-2 rounded-full"
               >
                 <span>🛒</span>
                 Shop Your Room
@@ -436,7 +442,7 @@ export default function PocketPlannerApp() {
                       <button
                         onClick={handleAnalyze}
                         disabled={state.isAnalyzing}
-                        className="bg-black text-white px-8 py-3 font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
+                        className="bg-black text-white px-8 py-3 font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 rounded-full"
                       >
                         {state.isAnalyzing ? 'Analyzing...' : 'Analyze Room'}
                       </button>
@@ -495,9 +501,9 @@ export default function PocketPlannerApp() {
         <div className="max-w-7xl mx-auto px-4 flex justify-between items-center">
           <div className="flex items-center gap-2 cursor-pointer" onClick={handleReset}>
             <div className="w-8 h-8 bg-black flex items-center justify-center rounded-lg">
-              <span className="text-white font-serif font-bold text-lg">P</span>
+              <span className="text-white font-serif font-bold text-lg">D</span>
             </div>
-            <span className="font-bold text-xl tracking-tight">PocketPlanner</span>
+            <span className="font-bold text-xl tracking-tight">Dwell.ai</span>
           </div>
 
           {/* Stage indicator - only show if image uploaded */}

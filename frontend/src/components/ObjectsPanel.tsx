@@ -52,7 +52,7 @@ export function ObjectsPanel({ objects, selectedObjectId, onObjectSelect }: Obje
                                     key={obj.id}
                                     onClick={() => onObjectSelect(obj.id)}
                                     className={`
-                    inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                    inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full
                     border transition-all duration-150 text-sm
                     ${style.bg} ${style.border} ${style.text}
                     ${isSelected

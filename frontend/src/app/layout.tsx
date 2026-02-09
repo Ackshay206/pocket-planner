@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Pocket Planner - AI Interior Design",
+  title: "Dwell.ai - AI Interior Design",
   description: "AI-powered generative 3D interior design agent for small spaces",
 };
 

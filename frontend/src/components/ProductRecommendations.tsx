@@ -41,9 +41,9 @@ export function ProductRecommendations({
                 <div className="flex items-center gap-4">
                     <button
                         onClick={onBack}
-                        className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                        className="p-2 bg-black text-white rounded-full hover:bg-gray-800 transition-colors"
                     >
-                        <ArrowLeft className="w-5 h-5 text-black" />
+                        <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div>
                         <h2 className="text-2xl font-bold text-black tracking-tight">Shop Your Room</h2>
@@ -62,11 +62,9 @@ export function ProductRecommendations({
                         <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input
                             type="number"
-                            min={100}
-                            step={50}
                             value={budget}
-                            onChange={(e) => onBudgetChange(Math.max(100, Number(e.target.value)))}
-                            className="w-full pl-9 pr-4 py-3 border border-gray-200 bg-white text-lg font-medium focus:outline-none focus:border-black transition-colors"
+                            onChange={(e) => onBudgetChange(Number(e.target.value))}
+                            className="w-full pl-9 pr-4 py-3 border border-gray-200 bg-white text-lg font-medium focus:outline-none focus:border-black transition-colors rounded-full"
                             placeholder="2000"
                         />
                     </div>
@@ -74,7 +72,7 @@ export function ProductRecommendations({
                 <button
                     onClick={onSearch}
                     disabled={!hasLayout || isLoading}
-                    className="w-full sm:w-auto px-8 py-3 bg-black text-white font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="w-full sm:w-auto px-8 py-3 bg-black text-white font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 rounded-full"
                 >
                     <Search className="w-4 h-4" />
                     Find Products
