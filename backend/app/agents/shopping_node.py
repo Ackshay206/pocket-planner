@@ -157,15 +157,15 @@ Generate a Google Shopping search query. The specificity depends on the item cat
 
 1. KEY FURNITURE (Bed, Sofa, Desk, Wardrobe, Dining Table):
    - HIGH SPECIFICITY. Include precise style, material, color, size, and defining features.
-   - Example: "Bed" → "Queen size walnut platform bed frame"
+   - Example: "Bed" → "Queen size walnut platform bed frame" : maximum 6 words
 
 2. SECONDARY FURNITURE (Nightstand, Chair, Coffee Table, Dresser):
    - MODERATE SPECIFICITY. Include style, material, color, and main dimension.
-   - Example: "Nightstand" → "White oak bedside table with drawers"
+   - Example: "Nightstand" → "White oak bedside table with drawers" : maximum 5 words
 
 3. DECOR / ACCESSORIES (Rug, Lamp, Plant, Artwork):
    - LOW SPECIFICITY. Focus on style, color, type, and size.
-   - Example: "Plant" → "Artificial fiddle leaf fig tree"
+   - Example: "Plant" → "Artificial fiddle leaf fig tree" :maximum 4 words
 
 Examples of POOR/GENERIC queries (AVOID THESE): "bed", "blue sofa", "wooden table", "plant".
 
